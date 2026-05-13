@@ -10,18 +10,11 @@
 ;; Overall Rate Limits 200 requests every 15 minutes, 2,000 daily
 ;; Read Rate Limits 100 requests every 15 minutes, 1,000 daily
 
-
 (def pp clojure.pprint/pprint)
 
 (def max-per-page 200)
 
-(def config (edn/read-string (slurp "config.edn")))
-
-(def my-id 1183932)
-
-(def my-activity-id 18456495726)
-
-(def activity-sittard-24 18456497751)
+(def auth (edn/read-string (slurp "auth.edn")))
 
 (def stream-keys ["time"
                   "distance"
@@ -51,8 +44,8 @@
 (defn exchange-code! [code]
   (let [new-creds (-> (http/request {:url "https://www.strava.com/oauth/token"
                                      :method :post
-                                     :form-params {"client_id" (:client-id config)
-                                                   "client_secret" (:client-secret config)
+                                     :form-params {"client_id" (:client-id auth)
+                                                   "client_secret" (:client-secret auth)
                                                    "code" code
                                                    "grant_type" "authorization_code"}})
                       :body
@@ -64,8 +57,8 @@
 (defn refresh-token! []
   (let [data (-> (http/request {:method :post
                                 :url "https://www.strava.com/oauth/token"
-                                :form-params {:client_id (:client-id config)
-                                              :client_secret (:client-secret config)
+                                :form-params {:client_id (:client-id auth)
+                                              :client_secret (:client-secret auth)
                                               :grant_type "refresh_token"
                                               :refresh_token (:refresh-token @creds)}})
                  :body
@@ -117,7 +110,7 @@
   "No rate limit, uses session cookie"
   [activity-id file]
   (let [data (-> {:url (format "https://www.strava.com/activities/%s/export_original" activity-id)
-                  :headers {"cookie" (str "_strava4_session=" (:session-cookie config))}
+                  :headers {"cookie" (str "_strava4_session=" (:session-cookie auth))}
                   :as :bytes
                   :throw false}
                  http/request

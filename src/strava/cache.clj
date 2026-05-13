@@ -22,7 +22,7 @@
       (.format (java.time.Instant/parse (:start_date activity)))))
 
 (defn short-name [activity]
-  (let [s (:name activity)]
+  (let [s (:name activity "noname")]
     (subs s 0 (min (count s) 30))))
 
 (defn distance [activity]
@@ -56,8 +56,6 @@
         [year* month*] (next-month year month)
         before (format "%4d-%02d-01T00:00:00Z" year* month*)
         coll (api/list-activities :per-page 200 :after after :before before)]
-
     (doseq [x coll]
+      (println (fit-file-name x))
       (sync-activity x))))
-
-(sync-month 2026 1)
