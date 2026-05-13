@@ -1,14 +1,15 @@
-(ns strava.cache
+(ns strava.repo
   (:require [babashka.fs :as fs]
-            [cheshire.core :as json]
+            [clojure.pprint]
+            [clojure.string :as str]
             [strava.api :as api]))
 
-(def cache-dir ".cache")
+(def repo-dir ".repo")
 
-(def pattern #".cache/(\d+)\D+\.fit")
+(def pattern #".repo/(\d+).*\.fit")
 
 (defn load-index []
-  (->> (fs/glob (fs/file cache-dir) "*")
+  (->> (fs/glob (fs/file repo-dir) "*")
        (map str)
        (keep #(re-matches pattern %))
        (map (fn [[f n]] [(parse-long n) f]))
@@ -23,7 +24,7 @@
 
 (defn short-name [activity]
   (let [s (:name activity "noname")]
-    (subs s 0 (min (count s) 30))))
+    (str/trim (subs s 0 (min (count s) 30)))))
 
 (defn distance [activity]
   (format "%5.1f km" (/ (:distance activity) 1000)))
@@ -38,10 +39,10 @@
        (short-name activity)
        "].fit"))
 
-(defn sync-activity [activity]
+(defn get-file-by-activity [activity]
   (if-let [f (get @index (:id activity))]
     f
-    (let [f (fs/file cache-dir (fit-file-name activity))]
+    (let [f (fs/file repo-dir (fit-file-name activity))]
       (api/download-original (:id activity) f)
       (swap! index assoc (:id activity) f)
       f)))
@@ -58,4 +59,11 @@
         coll (api/list-activities :per-page 200 :after after :before before)]
     (doseq [x coll]
       (println (fit-file-name x))
-      (sync-activity x))))
+      (get-file-by-activity x))))
+
+(defn xform-by-pattern [pat]
+  (filter #(str/includes? (str/lower-case %) (str/lower-case pat))))
+
+(defn find-by-pattern [& coll]
+  (let [xf (apply comp (map #(xform-by-pattern %) coll))]
+    (transduce xf conj (vals @index))))

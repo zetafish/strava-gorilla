@@ -2,9 +2,13 @@
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
             [clojure.data.csv :as csv]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.pprint]
             [clojure.string :as str]
             [medley.core :as medley]))
+
+(def cache-dir ".cache")
 
 (def pp clojure.pprint/pprint)
 
@@ -15,12 +19,12 @@
 (def classpath (delay (build-classpath)))
 
 (defn- parse-header [header]
-  (->> header
-       (mapv (fn [col]
-               (-> col
-                   (str/replace #"^record\." "")
-                   (str/replace #"\[.*\]" "")
-                   keyword)))))
+  (mapv (fn [col]
+          (-> col
+              (str/replace #"^record\." "")
+              (str/replace #"\[.*\]" "")
+              keyword))
+        header))
 
 (defn epoch->instant [epoch]
   (java.time.Instant/ofEpochSecond epoch))
@@ -48,10 +52,6 @@
         ;; other
         (update :timestamp parse-long))))
 
-(defn efficiency [{:keys [speed heart_rate]}]
-  (when (and speed heart_rate)
-    (/ speed heart_rate)))
-
 (defn rolling-speed [records window]
   (mapv (fn [i]
           (let [curr (get records i)
@@ -62,7 +62,7 @@
               (* 1.0 (/ dd dt)))))
         (range (count records))))
 
-(defn fit->records [fit-path]
+(defn- fit->records [fit-path]
   (let [base (fs/create-temp-dir)
         csv-base (str base "/out")
         csv-data (str csv-base "_data.csv")
@@ -79,7 +79,11 @@
         (let [[header & rows] (csv/read-csv r)
               keys (parse-header header)
               rows (->> rows
-                        (mapv #(parse-fields (medley/remove-vals str/blank? (zipmap keys %))))
+                        (mapv #(->> (zipmap keys %)
+                                    (medley/remove-vals str/blank?)
+                                    (medley/remove-keys (fn [k] (or (str/includes? (name k) " ")
+                                                                    (str/blank? (name k)))))
+                                    parse-fields))
                         (remove (comp nil? :speed))
                         (remove (comp nil? :distance)))
               start-ts (:timestamp (first rows))]
@@ -91,34 +95,36 @@
         (io/delete-file csv-defn true)
         (fs/delete base)))))
 
+(defn parse-file [fit-file]
+  (fs/create-dirs cache-dir)
+  (let [id (second (re-matches #".repo/(\d+).*" fit-file))
+        f (fs/file cache-dir (str id ".edn"))]
+    (if (fs/exists? f)
+      (edn/read-string (slurp f))
+      (let [coll (fit->records fit-file)]
+        (spit f (with-out-str (clojure.pprint/pprint coll)))
+        coll))))
+
 (defn bucket-fn [ts start-ts window]
   (* window (quot (- ts start-ts) window)))
 
-(defn at [seconds]
-  (let [d (quot seconds (* 24 3600))
-        h (rem (quot seconds 3600) 24)
-        m (rem (quot seconds 60) 60)
-        s (rem seconds 60)]
-    (cond-> ""
-      (pos? d) (str d "d")
-      (pos? h) (str h "h")
-      (pos? m) (str m "m")
-      true (str s "s"))))
-
 (defn avg [k coll]
-  (let [coll (keep k coll)]
-    (double (/ (reduce + coll) (count coll)))))
+  (let [vals (keep k coll)]
+    (when (seq vals)
+      (double (/ (reduce + vals) (count vals))))))
 
 (defn agg [coll]
   {:at (:at (first coll))
    :timestamp (:timestamp (first coll))
-   :heart_rate (avg :heart_rate coll)
-   :cadence (avg :cadence coll)
-   :step_length (avg :step_length coll)
+   :heart_rate (some-> (avg :heart_rate coll) int)
+   :cadence (some-> (avg :cadence coll) int)
+   :step_length (some-> (avg :step_length coll) int)
+   :distance (- (:distance (last coll)) (:distance (first coll)))
    :speed (/ (- (:distance (last coll)) (:distance (first coll)))
-             (- (:timestamp (last coll)) (:timestamp (first coll))))})
+             (- (:timestamp (last coll)) (:timestamp (first coll))))
+   :pts (count coll)})
 
-(defn bucketize [records window]
+(defn bucketize [window records]
   (let [start-ts (:timestamp (first records))]
     (->> (group-by #(bucket-fn (:timestamp %) start-ts window) records)
          vals

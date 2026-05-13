@@ -1,66 +1,123 @@
 (ns strava.core
-  (:require [clojure.string :as str]
+  (:require [babashka.cli :as cli]
+            [clojure.string :as str]
             [strava.api :as api]
-            [strava.fit :as fit])
+            [strava.fit :as fit]
+            [strava.repo :as repo])
   (:import (java.time
             Duration
             Instant
             Period)))
 
-(defn dump-csv [fit-file csv-file]
-  (let [header [:timestamp :at :ef_si :ef_metric :distance :speed :heart_rate :cadence :step_length]
-        s (->> (fit/fit->records fit-file)
-               (map #(let [ef-si (fit/efficiency %)]
-                       (assoc %
-                              :ef_si ef-si
-                              :ef_metric (some-> ef-si (* 60)))))
-               (map (apply juxt header))
-               ;; (filter #(every? some? %))
-               (map #(str/join "," %))
-               (str/join \newline))]
-    (spit csv-file
-          (str/join \newline
-                    [(str/join "," (map name header))
-                     s]))))
+(defn at->str [seconds]
+  (when seconds
+    (let [h (quot seconds 3600)
+          m (rem (quot seconds 60) 60)
+          s (rem seconds 60)]
+      (str h "h" m "m"))))
+
+(defn pace->str [seconds]
+  (when seconds
+    (let [m (quot seconds 60)
+          s (rem seconds 60)]
+      (str m "m" s "s"))))
+
+(defn efficiency [{:keys [speed heart_rate]}]
+  (when (and speed heart_rate)
+    (/ speed heart_rate)))
+
+(defn pace [{:keys [speed]}]
+  (when (pos? speed)
+    (int (/ 3600 (* 3.6 speed)))))
+
+(defn kmph [{:keys [speed]}]
+  (* 3.6 speed))
 
 (defn enrich [m]
-  (if-let [ef-si (fit/efficiency m)]
+  (if-let [ef-si (efficiency m)]
     (assoc m
            :ef_si ef-si
-           :ef_metric (* 60 ef-si))
+           :ef_metric (* 60 ef-si)
+           :pace (pace m)
+           :kmph (kmph m))
     m))
 
 (defn build-csv [coll]
-  (let [header [:timestamp :at :ef_si :ef_metric :distance :speed :heart_rate :cadence :step_length]
-        data (->> coll
+  (let [header [:timestamp :at :ef_si :ef_metric :distance :speed :heart_rate :cadence :step_length :pts]
+        rows (->> coll
                   (map enrich)
                   (map (apply juxt header))
                   (map #(str/join "," %)))]
     (str/join \newline
-              (concat [(str/join "," (map name header))]
-                      (map #(str/join "," data))))))
+              [(str/join "," (map name header))
+               (str/join \newline rows)])))
 
-(defn process-activity [id name]
-  (let [fit-file (str id "-" name ".fit")
-        csv-file (str id "-" name ".csv")]
-    (api/download-original id fit-file)
-    (dump-csv fit-file csv-file)))
+(defn print-table [coll]
+  (println (str/join (repeat 50 "-")))
+  (let [header ["Time" "HR" "Pace" "km/h" "EF" "cad" "slen" "pts"]
+        fmt-h "%10s %4s %8s %5s %7s %5s %5s %5s"
+        fmt-r "%10s %4s %8s %5.1f %7.5f %5s %5s %5s"]
 
-(process-activity 18488439809 "morning-run")
+    (println (apply format fmt-h header))
+    (println (str/join (repeat 50 "-")))
+    (doseq [x coll]
+      (println (format fmt-r
+                       (at->str (:at x))
+                       (:heart_rate x)
+                       (pace->str (:pace x))
+                       (:kmph x)
+                       (:ef_metric x)
+                       (:cadence x)
+                       (:step_length x)
+                       (:pts x))))))
 
-;; (process-activity 5793097926 "assen")
+(defn parse-at
+  "Parse duration/offset string to seconds. Supports: 1h, 30m, 90s, 1h30, 21h15m, 21h15"
+  [s]
+  (when s
+    (let [s (str/trim s)]
+      (cond
+        ;; 21h15 or 1h30 (hours + minutes, m optional)
+        (re-matches #"\d+h\d+m?" s)
+        (let [[_ h m] (re-matches #"(\d+)h(\d+)m?" s)]
+          (+ (* (parse-long h) 3600) (* (parse-long m) 60)))
 
-(def data (fit/fit->records "18488439809-morning-run.fit"))
-(def d2 (fit/bucketize data 60))
+        ;; 5h
+        (re-matches #"\d+h" s)
+        (* (parse-long (str/replace s "h" "")) 3600)
 
-(do
-  (println (format "%8s  %3s  %3s   %3s"
-                   "time" "HR" "pace" "km/h"))
-  (doseq [d d2]
-    ;; at hr pace
+        ;; 30m
+        (re-matches #"\d+m" s)
+        (* (parse-long (str/replace s "m" "")) 60)
 
-    (println (format "%8s  %3d  %3s  %3.2f"
-                     (:at d)
-                     (:heart_rate d)
-                     (fit/duration (fit/pace d))
-                     (fit/kmph d)))))
+        ;; 90s
+        (re-matches #"\d+s" s)
+        (parse-long (str/replace s "s" ""))
+
+        :else
+        (do (println (str "Invalid time format: " s))
+            (System/exit 1))))))
+
+(def spec {:pattern {:alias :p :coerce [] :require true}
+           :interval {:alias :i :coerce :int :default 3600}
+           :from {:coerce parse-at :desc "Start time as offset (e.g. 21h15, 3h, 120m, 7200s)"}
+           :to {:coerce parse-at :desc "End time as offset (e.g. 21h15, 3h, 120m, 7200s)"}})
+
+(defn help-requested [args]
+  (when (or (not (seq args))
+            (:help (cli/parse-opts args {:spec {:help {:alias :h}}})))
+    (println (cli/format-opts {:spec spec}))
+    true))
+
+(defn run [opts]
+  (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
+    (->> (fit/parse-file f)
+         (fit/bucketize (:interval opts))
+         (map enrich)
+         (print-table))
+    (println "No fit file found for" (:pattern opts))))
+
+(defn -main [& args]
+  (or (help-requested args)
+      (let [opts (cli/parse-opts args {:spec spec})]
+        (run opts))))
