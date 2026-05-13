@@ -12,7 +12,7 @@ Babashka CLI for downloading and analyzing Strava activities from FIT files.
     :client-secret "your-secret"
     :session-cookie "your-strava4-session-cookie"}
    ```
-4. Authorize: open the URL from `strava.api/start-auth` in browser, then run `(api/exchange-code! "CODE")`
+4. Authorize: open `https://www.strava.com/oauth/authorize?client_id=4863&response_type=code&redirect_uri=http://localhost/exchange_token&approval_prompt=force&scope=read,activity:read_all` in browser, copy the `code` param from the redirect URL, then run `(api/exchange-code! "CODE")`
 
 ## Usage
 
