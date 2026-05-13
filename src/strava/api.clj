@@ -14,7 +14,7 @@
 
 (def max-per-page 200)
 
-(def auth (edn/read-string (slurp "auth.edn")))
+(def auth (edn/read-string (slurp ".auth.edn")))
 
 (def stream-keys ["time"
                   "distance"
@@ -28,10 +28,10 @@
                   "grade_smooth"])
 
 (defn read-creds []
-  (fs/touch "creds.edn")
-  (edn/read-string (slurp "creds.edn")))
+  (fs/touch ".creds.edn")
+  (edn/read-string (slurp ".creds.edn")))
 
-(defonce creds (atom (read-creds)))
+(def creds (atom (read-creds)))
 
 (add-watch creds :store
            (fn [_key _ref _old-value new-value]

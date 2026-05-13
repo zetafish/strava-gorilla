@@ -111,7 +111,9 @@
 
 (defn run [opts]
   (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
-    (->> (fit/parse-file f)
+    (->> (cond->> (fit/parse-file f)
+           (:from opts) (drop-while #(< (:at %) (:from opts)))
+           (:to opts) (take-while #(< (:at %) (:to opts))))
          (fit/bucketize (:interval opts))
          (map enrich)
          (print-table))

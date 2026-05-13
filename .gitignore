@@ -1,6 +1,7 @@
-.cache
-.repo
+.cache/
+.repo/
+.auth.edn
+.creds.edn
+.cpcache/
 \#*
 .\#*
-auth.edn
-creds.edn
