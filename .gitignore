@@ -4,5 +4,6 @@
 .claude/
 .auth.edn
 .creds.edn
+.strava.db
 \#*
 .\#*

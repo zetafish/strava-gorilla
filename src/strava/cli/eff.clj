@@ -34,22 +34,18 @@
   (* 3.6 speed))
 
 (defn enrich [m]
-  (if-let [ef-si (efficiency m)]
-    (assoc m
-           :ef_si ef-si
-           :ef_metric (* 60 ef-si)
-           :pace (pace m)
-           :kmph (kmph m))
-    m))
+  (cond-> (assoc m :pace (pace m) :kmph (some-> (:speed m) (* 3.6)))
+    (efficiency m) (assoc :ef_si (efficiency m)
+                          :ef_metric (* 60 (efficiency m)))))
 
 (defn format-point [m]
   (-> m
       (update :timestamp ts->str)
       (update :at at->str)
-      (update :ef_si #(format "%5.3f" %))
-      (update :ef_metric #(format "%5.3f" %))
-      (update :speed #(format "%3.1f" %))
-      (update :kmph #(format "%3.1f" %))
+      (update :ef_si #(some-> % (as-> v (format "%5.3f" v))))
+      (update :ef_metric #(some-> % (as-> v (format "%5.3f" v))))
+      (update :speed #(some-> % (as-> v (format "%3.1f" v))))
+      (update :kmph #(some-> % (as-> v (format "%3.1f" v))))
       (update :pace pace->str)))
 
 (defn print-csv [coll]
@@ -110,7 +106,7 @@
             (System/exit 1))))))
 
 (def spec {:pattern {:alias :p :coerce [] :require true}
-           :interval {:alias :i :coerce :int :default 3600}
+           :interval {:alias :i :coerce parse-at :default 3600 :desc "Bucket interval (e.g. 5m, 10s, 1h)"}
            :format {:alias :f :default "table" :validate #{"table" "csv" "json"}}
            :from {:coerce parse-at :desc "Start time as offset (e.g. 21h15, 3h, 120m, 7200s)"}
            :to {:coerce parse-at :desc "End time as offset (e.g. 21h15, 3h, 120m, 7200s)"}})

@@ -2,5 +2,7 @@
  :deps {org.babashka/http-client {:mvn/version "0.4.22"}
         dev.weavejester/medley {:mvn/version "1.10.0"}}
  :tasks
- {:requires ([strava.core :as core])
-  eff (apply core/-main *command-line-args*)}}
+ {:requires ([strava.cli :as cli])
+  eff (cli/eff *command-line-args*)
+  sync (cli/sync *command-line-args*)
+  search (cli/search *command-line-args*)}}

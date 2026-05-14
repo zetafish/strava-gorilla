@@ -1,6 +1,7 @@
 (ns strava.fit
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
+            [cheshire.core :as json]
             [clojure.data.csv :as csv]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -97,12 +98,12 @@
 
 (defn parse-file [fit-file]
   (fs/create-dirs cache-dir)
-  (let [id (second (re-matches #".repo/(\d+).*" fit-file))
-        f (fs/file cache-dir (str id ".edn"))]
+  (let [id (second (re-matches #".*_(\d+)_.*\.fit" fit-file))
+        f (fs/file cache-dir (str id ".json"))]
     (if (fs/exists? f)
-      (edn/read-string (slurp f))
+      (json/parse-string (slurp f) true)
       (let [coll (fit->records fit-file)]
-        (spit f (with-out-str (clojure.pprint/pprint coll)))
+        (spit f (json/generate-string coll {:pretty true}))
         coll))))
 
 (defn bucket-fn [ts start-ts window]

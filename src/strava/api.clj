@@ -33,11 +33,11 @@
   (fs/touch ".creds.edn")
   (edn/read-string (slurp ".creds.edn")))
 
-(def creds (atom (read-creds)))
+(defonce creds (atom (read-creds)))
 
 (add-watch creds :store
            (fn [_key _ref _old-value new-value]
-             (spit "creds.edn"
+             (spit ".creds.edn"
                    (with-out-str
                      (clojure.pprint/pprint new-value)))))
 

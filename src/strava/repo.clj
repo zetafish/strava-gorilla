@@ -8,10 +8,10 @@
 
 (def desc-dir ".desc")
 
-(def pattern #".repo/(\d+).*\.fit")
+(def pattern #".repo/.*_(\d+)_.*\.fit")
 
 (defn load-index []
-  (->> (fs/glob (fs/file repo-dir) "*")
+  (->> (fs/list-dir repo-dir)
        (map str)
        (keep #(re-matches pattern %))
        (map (fn [[f n]] [(parse-long n) f]))
@@ -34,12 +34,13 @@
   (format "%5.1f km" (/ (:distance activity) 1000)))
 
 (defn fit-file-name [activity]
-  (str (:id activity)
-       "_["
+  (str "["
        (formatted-start-date activity)
        "]_["
        (distance activity)
-       "]_["
+       "]_"
+       (:id activity)
+       "_["
        (short-name activity)
        "].fit"))
 
@@ -56,20 +57,6 @@
         f (fs/file desc-dir (str id ".txt"))]
     (fs/create-dirs desc-dir)
     (spit f desc)))
-
-(defn next-month [year month]
-  (if (= 12 month)
-    [(inc year) 1]
-    [year (inc month)]))
-
-(defn sync-month [year month]
-  (let [after (format "%4d-%02d-01T00:00:00Z" year month)
-        [year* month*] (next-month year month)
-        before (format "%4d-%02d-01T00:00:00Z" year* month*)
-        coll (api/list-activities :per-page 200 :after after :before before)]
-    (doseq [x coll]
-      (println (fit-file-name x))
-      (get-fit-file-by-activity x))))
 
 (defn xform-by-pattern [pat]
   (filter #(str/includes? (str/lower-case %) (str/lower-case pat))))
