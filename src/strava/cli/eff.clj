@@ -1,26 +1,26 @@
-(ns strava.core
+(ns strava.cli.eff
   (:require [babashka.cli :as cli]
+            [cheshire.core :as json]
             [clojure.string :as str]
-            [strava.api :as api]
             [strava.fit :as fit]
-            [strava.repo :as repo])
-  (:import (java.time
-            Duration
-            Instant
-            Period)))
+            [strava.repo :as repo]))
 
 (defn at->str [seconds]
   (when seconds
     (let [h (quot seconds 3600)
           m (rem (quot seconds 60) 60)
           s (rem seconds 60)]
-      (str h "h" m "m"))))
+      ;; (str h "h" m "m" s "s")
+      (format "%02d:%02d:%02d" h m s))))
 
 (defn pace->str [seconds]
   (when seconds
     (let [m (quot seconds 60)
           s (rem seconds 60)]
       (str m "m" s "s"))))
+
+(defn ts->str [ts]
+  (java.time.Instant/ofEpochSecond ts))
 
 (defn efficiency [{:keys [speed heart_rate]}]
   (when (and speed heart_rate)
@@ -42,29 +42,40 @@
            :kmph (kmph m))
     m))
 
-(defn build-csv [coll]
+(defn format-point [m]
+  (-> m
+      (update :timestamp ts->str)
+      (update :at at->str)
+      (update :ef_si #(format "%5.3f" %))
+      (update :ef_metric #(format "%5.3f" %))
+      (update :speed #(format "%3.1f" %))
+      (update :kmph #(format "%3.1f" %))
+      (update :pace pace->str)))
+
+(defn print-csv [coll]
   (let [header [:timestamp :at :ef_si :ef_metric :distance :speed :heart_rate :cadence :step_length :pts]
         rows (->> coll
-                  (map enrich)
                   (map (apply juxt header))
                   (map #(str/join "," %)))]
-    (str/join \newline
-              [(str/join "," (map name header))
-               (str/join \newline rows)])))
+    (println (str/join \newline
+                       [(str/join "," (map name header))
+                        (str/join \newline rows)]))))
+
+(defn print-json [coll]
+  (println (json/encode coll {:pretty true})))
 
 (defn print-table [coll]
   (println (str/join (repeat 50 "-")))
-  (let [header ["Time" "HR" "Pace" "km/h" "EF" "cad" "slen" "pts"]
-        fmt-h "%10s %4s %8s %5s %7s %5s %5s %5s"
-        fmt-r "%10s %4s %8s %5.1f %7.5f %5s %5s %5s"]
+  (let [header ["Offset" "HR" "Pace" "km/h" "EF" "cad" "slen" "pts"]
+        fmt "%10s %4s %8s %5s %7s %5s %5s %5s"]
 
-    (println (apply format fmt-h header))
+    (println (apply format fmt header))
     (println (str/join (repeat 50 "-")))
     (doseq [x coll]
-      (println (format fmt-r
-                       (at->str (:at x))
+      (println (format fmt
+                       (:at x)
                        (:heart_rate x)
-                       (pace->str (:pace x))
+                       (:pace x)
                        (:kmph x)
                        (:ef_metric x)
                        (:cadence x)
@@ -100,6 +111,7 @@
 
 (def spec {:pattern {:alias :p :coerce [] :require true}
            :interval {:alias :i :coerce :int :default 3600}
+           :format {:alias :f :default "table" :validate #{"table" "csv" "json"}}
            :from {:coerce parse-at :desc "Start time as offset (e.g. 21h15, 3h, 120m, 7200s)"}
            :to {:coerce parse-at :desc "End time as offset (e.g. 21h15, 3h, 120m, 7200s)"}})
 
@@ -109,17 +121,18 @@
     (println (cli/format-opts {:spec spec}))
     true))
 
-(defn run [opts]
-  (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
-    (->> (cond->> (fit/parse-file f)
-           (:from opts) (drop-while #(< (:at %) (:from opts)))
-           (:to opts) (take-while #(< (:at %) (:to opts))))
-         (fit/bucketize (:interval opts))
-         (map enrich)
-         (print-table))
-    (println "No fit file found for" (:pattern opts))))
-
-(defn -main [& args]
+(defn run [args]
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})]
-        (run opts))))
+        (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
+          (let [coll (->> (cond->> (fit/parse-file f)
+                            (:from opts) (drop-while #(< (:at %) (:from opts)))
+                            (:to opts) (take-while #(< (:at %) (:to opts))))
+                          (fit/bucketize (:interval opts))
+                          (map enrich)
+                          (map format-point))]
+            (case (:format opts)
+              "table" (print-table coll)
+              "csv" (print-csv coll)
+              "json" (print-json coll)))
+          (println "No fit file found for" (:pattern opts))))))

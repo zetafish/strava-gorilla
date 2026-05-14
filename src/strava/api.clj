@@ -5,7 +5,9 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint]
-            [clojure.string :as str]))
+            [clojure.string :as str])
+  (:import (org.jsoup
+            Jsoup)))
 
 ;; Overall Rate Limits 200 requests every 15 minutes, 2,000 daily
 ;; Read Rate Limits 100 requests every 15 minutes, 1,000 daily
@@ -116,3 +118,16 @@
                  http/request
                  :body)]
     (io/copy data (io/file file))))
+
+(defn fetch-description
+  "No rate limit, uses session cookie"
+  [activity-id]
+  (let [html (-> {:url (format "https://www.strava.com/activities/%s" activity-id)
+                  :headers {"cookie" (str "_strava4_session=" (:session-cookie auth))}
+                  :as :string
+                  :throw false}
+                 http/request
+                 :body)
+        doc (Jsoup/parse html)
+        text-nodes (.selectXpath doc "//div[@class='content']/p/text()", org.jsoup.nodes.TextNode)]
+    (str/join "\n\n" (map #(.text %) text-nodes))))

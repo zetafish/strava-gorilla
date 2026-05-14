@@ -114,15 +114,18 @@
       (double (/ (reduce + vals) (count vals))))))
 
 (defn agg [coll]
-  {:at (:at (first coll))
-   :timestamp (:timestamp (first coll))
-   :heart_rate (some-> (avg :heart_rate coll) int)
-   :cadence (some-> (avg :cadence coll) int)
-   :step_length (some-> (avg :step_length coll) int)
-   :distance (- (:distance (last coll)) (:distance (first coll)))
-   :speed (/ (- (:distance (last coll)) (:distance (first coll)))
-             (- (:timestamp (last coll)) (:timestamp (first coll))))
-   :pts (count coll)})
+  (case (count coll)
+    0 nil
+    1 (assoc (first coll) :pts 1)
+    {:at (:at (first coll))
+     :timestamp (:timestamp (first coll))
+     :heart_rate (some-> (avg :heart_rate coll) int)
+     :cadence (some-> (avg :cadence coll) int)
+     :step_length (some-> (avg :step_length coll) int)
+     :distance (- (:distance (last coll)) (:distance (first coll)))
+     :speed (/ (- (:distance (last coll)) (:distance (first coll)))
+               (- (:timestamp (last coll)) (:timestamp (first coll))))
+     :pts (count coll)}))
 
 (defn bucketize [window records]
   (let [start-ts (:timestamp (first records))]
