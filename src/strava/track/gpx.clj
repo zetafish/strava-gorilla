@@ -1,4 +1,4 @@
-(ns strava.gpxdata
+(ns strava.track.gpx
   (:require [clojure.data.xml :as xml]
             [clojure.java.io :as io]))
 
@@ -71,7 +71,7 @@
         (recur (conj acc (assoc pt :distance dist :speed speed))
                dist pt more)))))
 
-(defn gpx->records [gpx-path]
+(defn records [gpx-path]
   (with-open [r (io/reader gpx-path)]
     (let [root (xml/parse r)
           trkpts (->> (:content root)

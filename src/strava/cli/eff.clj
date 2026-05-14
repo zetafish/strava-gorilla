@@ -2,7 +2,7 @@
   (:require [babashka.cli :as cli]
             [cheshire.core :as json]
             [clojure.string :as str]
-            [strava.fit :as fit]
+            [strava.track :as track]
             [strava.repo :as repo]))
 
 (defn at->str [seconds]
@@ -121,10 +121,10 @@
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})]
         (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
-          (let [coll (->> (cond->> (fit/parse-file f)
+          (let [coll (->> (cond->> (track/parse-file f)
                             (:from opts) (drop-while #(< (:at %) (:from opts)))
                             (:to opts) (take-while #(< (:at %) (:to opts))))
-                          (fit/bucketize (:interval opts))
+                          (track/bucketize (:interval opts))
                           (map enrich)
                           (map format-point))]
             (case (:format opts)

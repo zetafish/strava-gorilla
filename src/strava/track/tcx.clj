@@ -1,4 +1,4 @@
-(ns strava.tcxdata
+(ns strava.track.tcx
   (:require [clojure.data.xml :as xml]
             [clojure.string :as str]))
 
@@ -35,7 +35,7 @@
       dist (assoc :distance dist)
       speed (assoc :speed speed))))
 
-(defn tcx->records [tcx-path]
+(defn records [tcx-path]
   (let [root (xml/parse-str (str/trim (slurp tcx-path)))
         trkpts (->> (:content root)
                     (mapcat :content)
