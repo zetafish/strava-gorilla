@@ -5,4 +5,5 @@
  {:requires ([strava.cli :as cli])
   eff (cli/eff *command-line-args*)
   sync (cli/sync *command-line-args*)
-  search (cli/search *command-line-args*)}}
+  search (cli/search *command-line-args*)
+  fetch-desc (cli/fetch-desc *command-line-args*)}}
