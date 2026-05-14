@@ -2,8 +2,8 @@
   (:require [babashka.cli :as cli]
             [cheshire.core :as json]
             [clojure.string :as str]
-            [strava.track :as track]
-            [strava.repo :as repo]))
+            [strava.repo :as repo]
+            [strava.track :as track]))
 
 (defn at->str [seconds]
   (when seconds
@@ -46,6 +46,7 @@
       (update :ef_metric #(some-> % (as-> v (format "%5.3f" v))))
       (update :speed #(some-> % (as-> v (format "%3.1f" v))))
       (update :kmph #(some-> % (as-> v (format "%3.1f" v))))
+      (update :distance #(some-> % long))
       (update :pace pace->str)))
 
 (defn print-csv [coll]
@@ -62,8 +63,8 @@
 
 (defn print-table [coll]
   (println (str/join (repeat 50 "-")))
-  (let [header ["Offset" "HR" "Pace" "km/h" "EF" "cad" "slen" "pts"]
-        fmt "%10s %4s %8s %5s %7s %5s %5s %5s"]
+  (let [header ["Offset" "HR" "Pace" "km/h" "dist" "EF" "cad" "slen" "pts"]
+        fmt "%10s %4s %8s %5s %10s %7s %5s %5s %5s"]
 
     (println (apply format fmt header))
     (println (str/join (repeat 50 "-")))
@@ -73,10 +74,25 @@
                        (:heart_rate x)
                        (:pace x)
                        (:kmph x)
+                       (:distance x)
                        (:ef_metric x)
                        (:cadence x)
                        (:step_length x)
                        (:pts x))))))
+
+(defn print-summary [summary quarters]
+  (println (str/join (repeat 50 "-")))
+  (println (format "  Distance:   %.1f km" (/ (:distance summary) 1000.0)))
+  (println (format "  Duration:   %s" (at->str (:duration summary))))
+  (println (format "  Avg HR:     %s" (:heart_rate summary)))
+  (println (format "  Avg Pace:   %s" (:pace summary)))
+  (println (format "  Avg EF:     %s" (:ef_metric summary)))
+  (let [efs (keep :ef_metric quarters)]
+    (when (= 4 (count efs))
+      (println (format "  EF Q1-Q4:   %.3f  %.3f  %.3f  %.3f"
+                       (nth efs 0) (nth efs 1) (nth efs 2) (nth efs 3)))
+      (let [decline (* 100.0 (/ (- (first efs) (last efs)) (first efs)))]
+        (println (format "  EF Decline: %.1f%%" decline))))))
 
 (defn parse-at
   "Parse duration/offset string to seconds. Supports: 1h, 30m, 90s, 1h30, 21h15m, 21h15"
@@ -121,14 +137,21 @@
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})]
         (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
-          (let [coll (->> (cond->> (track/parse-file f)
-                            (:from opts) (drop-while #(< (:at %) (:from opts)))
-                            (:to opts) (take-while #(< (:at %) (:to opts))))
-                          (track/bucketize (:interval opts))
+          (let [records (cond->> (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail)
+                          (:from opts) (drop-while #(< (:at %) (:from opts)))
+                          (:to opts) (take-while #(< (:at %) (:to opts))))
+                coll (->> (track/bucketize (:interval opts) records)
                           (map enrich)
-                          (map format-point))]
+                          (map format-point))
+                summary (-> (track/agg records) enrich format-point)
+                q (quot (count records) 4)
+                quarters (mapv #(-> (track/agg %) enrich)
+                               [(take q records)
+                                (->> records (drop q) (take q))
+                                (->> records (drop (* 2 q)) (take q))
+                                (drop (* 3 q) records)])]
             (case (:format opts)
-              "table" (print-table coll)
+              "table" (do (print-table coll) (print-summary summary quarters))
               "csv" (print-csv coll)
               "json" (print-json coll)))
           (println "No fit file found for" (:pattern opts))))))

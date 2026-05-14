@@ -20,6 +20,16 @@
           (str/includes? head "TrainingCenterDatabase") :tcx
           (str/includes? head "<gpx") :gpx)))))
 
+(defn remove-head [coll]
+  (->> (drop-while #(zero? (:speed % 0)) coll)
+       vec))
+
+(defn remove-tail [coll]
+  (->> (reverse coll)
+       (drop-while #(zero? (:speed % 0)))
+       reverse
+       vec))
+
 (defn- file->records [path]
   (case (detect-format path)
     :fit (fit/records path)
@@ -35,6 +45,15 @@
       (let [coll (file->records fit-file)]
         (spit f (json/generate-string coll {:pretty true}))
         coll))))
+
+(defn detect-record-duration [records]
+  (let [timestamps (map :timestamp (take 20 records))
+        deltas (map - (rest timestamps) timestamps)]
+    (long (/ (reduce + deltas) (count deltas)))))
+
+(defn add-duration [records]
+  (let [dur (detect-record-duration records)]
+    (mapv #(assoc % :duration dur) records)))
 
 (defn bucket-fn [ts start-ts window]
   (* window (quot (- ts start-ts) window)))
@@ -53,7 +72,8 @@
      :heart_rate (some-> (avg :heart_rate coll) int)
      :cadence (some-> (avg :cadence coll) int)
      :step_length (some-> (avg :step_length coll) int)
-     :distance (- (:distance (last coll)) (:distance (first coll)))
+     :distance (:distance (last coll))
+     :duration (reduce + (keep :duration coll))
      :speed (/ (- (:distance (last coll)) (:distance (first coll)))
                (- (:timestamp (last coll)) (:timestamp (first coll))))
      :pts (count coll)}))
