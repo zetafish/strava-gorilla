@@ -64,8 +64,12 @@
                        (:step_length x)
                        (:pts x))))))
 
-(defn print-summary [summary quarters]
+(defn print-summary [summary quarters activity]
   (println (str/join (repeat 50 "-")))
+  (when activity
+    (println (format "  ID:         %s" (:id activity)))
+    (println (format "  Name:       %s" (:name activity)))
+    (println (format "  Start:      %s" (:start_date_local activity))))
   (println (format "  Distance:   %.1f km" (/ (:distance summary) 1000.0)))
   (println (format "  Duration:   %s" (at->str (:duration summary))))
   (println (format "  Avg HR:     %s" (:heart_rate summary)))
@@ -121,7 +125,8 @@
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})]
         (if-let [f (first (apply repo/find-by-pattern (:pattern opts)))]
-          (let [records (cond->> (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail)
+          (let [activity (some-> (repo/extract-id f) repo/find-activity)
+                records (cond->> (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail)
                           (:from opts) (drop-while #(< (:at %) (:from opts)))
                           (:to opts) (take-while #(< (:at %) (:to opts))))
                 coll (->> (track/bucketize (:interval opts) records)
@@ -134,7 +139,7 @@
                                 (->> records (drop (* 2 q)) (take q))
                                 (drop (* 3 q) records)])]
             (case (:format opts)
-              "table" (do (print-table coll) (print-summary summary quarters))
+              "table" (do (print-table coll) (print-summary summary quarters activity))
               "csv" (print-csv coll)
               "json" (print-json coll)))
           (println "No fit file found for" (:pattern opts))))))

@@ -1,5 +1,6 @@
 (ns strava.repo
   (:require [babashka.fs :as fs]
+            [cheshire.core :as json]
             [clojure.pprint]
             [clojure.string :as str]
             [strava.api :as api]))
@@ -57,6 +58,18 @@
         f (fs/file desc-dir (str id ".txt"))]
     (fs/create-dirs desc-dir)
     (spit f desc)))
+
+(def activities-dir ".activities")
+
+(defn extract-id [fit-path]
+  (some-> (re-matches pattern (str fit-path)) second parse-long))
+
+(defn find-activity [id]
+  (some (fn [f]
+          (->> (json/parse-string (slurp (str f)) true)
+               (filter #(= (:id %) id))
+               first))
+        (fs/list-dir activities-dir)))
 
 (defn xform-by-pattern [pat]
   (filter #(str/includes? (str/lower-case %) (str/lower-case pat))))
