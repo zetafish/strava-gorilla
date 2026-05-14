@@ -5,7 +5,9 @@
             [cognitect.transit :as transit]
             [strava.api :as api]
             [strava.fit :as fit]
-            [strava.repo :as repo]))
+            [strava.gpxdata :as gpxdata]
+            [strava.repo :as repo]
+            [strava.tcxdata :as tcxdata]))
 
 (def x (api/get-activity 17169259426))
 (api/refresh-token!)
@@ -54,3 +56,5 @@
   (read-transit "big.transit")))
 
 ;; 2609ms
+(gpxdata/gpx->records "amazfit.xml")
+(tcxdata/tcx->records "suunto.xml")

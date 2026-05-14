@@ -7,7 +7,9 @@
             [clojure.java.io :as io]
             [clojure.pprint]
             [clojure.string :as str]
-            [medley.core :as medley]))
+            [medley.core :as medley]
+            [strava.gpxdata :as gpxdata]
+            [strava.tcxdata :as tcxdata]))
 
 (def cache-dir ".cache")
 
@@ -96,13 +98,30 @@
         (io/delete-file csv-defn true)
         (fs/delete base)))))
 
+(defn- detect-format [path]
+  (let [buf (byte-array 500)]
+    (with-open [in (io/input-stream path)]
+      (.read in buf))
+    (if (= ".FIT" (String. buf 8 4))
+      :fit
+      (let [head (String. buf)]
+        (cond
+          (str/includes? head "TrainingCenterDatabase") :tcx
+          (str/includes? head "<gpx") :gpx)))))
+
+(defn- file->records [path]
+  (case (detect-format path)
+    :fit (fit->records path)
+    :gpx (gpxdata/gpx->records path)
+    :tcx (tcxdata/tcx->records path)))
+
 (defn parse-file [fit-file]
   (fs/create-dirs cache-dir)
   (let [id (second (re-matches #".*_(\d+)_.*\.fit" fit-file))
         f (fs/file cache-dir (str id ".json"))]
     (if (fs/exists? f)
       (json/parse-string (slurp f) true)
-      (let [coll (fit->records fit-file)]
+      (let [coll (file->records fit-file)]
         (spit f (json/generate-string coll {:pretty true}))
         coll))))
 

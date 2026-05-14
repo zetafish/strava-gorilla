@@ -26,7 +26,7 @@
 
 (defn short-name [activity]
   (let [s (:name activity "noname")]
-    (str/replace (str/trim (subs s 0 (min (count s) 30)))
+    (str/replace (str/trim (subs s 0 (min (count s) 50)))
                  "/"
                  "_")))
 
