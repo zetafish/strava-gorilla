@@ -22,22 +22,6 @@
 (defn ts->str [ts]
   (java.time.Instant/ofEpochSecond ts))
 
-(defn efficiency [{:keys [speed heart_rate]}]
-  (when (and speed heart_rate)
-    (/ speed heart_rate)))
-
-(defn pace [{:keys [speed]}]
-  (when (pos? speed)
-    (int (/ 3600 (* 3.6 speed)))))
-
-(defn kmph [{:keys [speed]}]
-  (* 3.6 speed))
-
-(defn enrich [m]
-  (cond-> (assoc m :pace (pace m) :kmph (some-> (:speed m) (* 3.6)))
-    (efficiency m) (assoc :ef_si (efficiency m)
-                          :ef_metric (* 60 (efficiency m)))))
-
 (defn format-point [m]
   (-> m
       (update :timestamp ts->str)
@@ -141,11 +125,10 @@
                           (:from opts) (drop-while #(< (:at %) (:from opts)))
                           (:to opts) (take-while #(< (:at %) (:to opts))))
                 coll (->> (track/bucketize (:interval opts) records)
-                          (map enrich)
                           (map format-point))
-                summary (-> (track/agg records) enrich format-point)
+                summary (-> (track/agg records) track/enrich format-point)
                 q (quot (count records) 4)
-                quarters (mapv #(-> (track/agg %) enrich)
+                quarters (mapv #(-> (track/agg %) track/enrich)
                                [(take q records)
                                 (->> records (drop q) (take q))
                                 (->> records (drop (* 2 q)) (take q))

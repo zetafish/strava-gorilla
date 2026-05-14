@@ -63,20 +63,36 @@
     (when (seq vals)
       (double (/ (reduce + vals) (count vals))))))
 
+(defn efficiency [{:keys [speed heart_rate]}]
+  (when (and speed heart_rate)
+    (/ speed heart_rate)))
+
+(defn pace [{:keys [speed]}]
+  (when (pos? speed)
+    (int (/ 3600 (* 3.6 speed)))))
+
+(defn kmph [{:keys [speed]}]
+  (* 3.6 speed))
+
+(defn enrich [m]
+  (cond-> (assoc m :pace (pace m) :kmph (some-> (:speed m) (* 3.6)))
+    (efficiency m) (assoc :ef_si (efficiency m)
+                          :ef_metric (* 60 (efficiency m)))))
+
 (defn agg [coll]
   (case (count coll)
     0 nil
     1 (assoc (first coll) :pts 1)
-    {:at (:at (first coll))
-     :timestamp (:timestamp (first coll))
-     :heart_rate (some-> (avg :heart_rate coll) int)
-     :cadence (some-> (avg :cadence coll) int)
-     :step_length (some-> (avg :step_length coll) int)
-     :distance (:distance (last coll))
-     :duration (reduce + (keep :duration coll))
-     :speed (/ (- (:distance (last coll)) (:distance (first coll)))
-               (- (:timestamp (last coll)) (:timestamp (first coll))))
-     :pts (count coll)}))
+    (enrich {:at (:at (first coll))
+             :timestamp (:timestamp (first coll))
+             :heart_rate (some-> (avg :heart_rate coll) int)
+             :cadence (some-> (avg :cadence coll) int)
+             :step_length (some-> (avg :step_length coll) int)
+             :distance (:distance (last coll))
+             :duration (reduce + (keep :duration coll))
+             :speed (/ (- (:distance (last coll)) (:distance (first coll)))
+                       (- (:timestamp (last coll)) (:timestamp (first coll))))
+             :pts (count coll)})))
 
 (defn bucketize [window records]
   (let [start-ts (:timestamp (first records))]
