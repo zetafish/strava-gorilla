@@ -44,7 +44,7 @@
                   (assoc tags activity-id remaining))]
     (save-tags updated)))
 
-(defn- load-all-activities []
+(defn load-all-activities []
   (->> (fs/list-dir ".activities" "*.json")
        (mapcat #(json/parse-string (slurp (str %)) true))))
 

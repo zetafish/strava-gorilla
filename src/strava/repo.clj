@@ -77,4 +77,4 @@
 
 (defn find-by-pattern [& coll]
   (let [xf (apply comp (map #(xform-by-pattern %) coll))]
-    (transduce xf conj (vals @index))))
+    (sort (transduce xf conj (vals @index)))))
