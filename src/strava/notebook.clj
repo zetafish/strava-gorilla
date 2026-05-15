@@ -113,6 +113,7 @@
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
                :y {:field "heart_rate" :type "quantitative" :title "HR (bpm)"
                    :scale {:zero false}}
+               :toolip [{:field :heart_rate}]
                :color {:value "#e74c3c"}}}))
 
 ;; ## Pace
@@ -131,6 +132,33 @@
                    :color {:value "#1abc9c"}
                    :tooltip [{:field "pace_fmt" :type "nominal" :title "Pace"}]}}))))
 
+;; ## Pace Distribution
+^{::clerk/visibility {:result :hide}}
+(def pace-buckets
+  [[180 240 "3-4m (5k)"]
+   [240 300 "4-5m (HM)"]
+   [300 360 "5-6m (steady)"]
+   [360 420 "6-7m (easy)"]
+   [420 480 "7-8m (slow)"]
+   [480 600 "8-10m (shuffle)"]
+   [600 720 "10-12m (walk)"]
+   [720 1200 "12-20m (walk slow)"]])
+
+(when bucketed
+  (let [paces (keep :pace bucketed)
+        counts (mapv (fn [[lo hi label]]
+                       {:bucket label
+                        :count (count (filter #(and (>= % lo) (< % hi)) paces))
+                        :sort (- lo)})
+                     pace-buckets)]
+    (clerk/vl
+     {:width 600
+      :data {:values (filter #(pos? (:count %)) counts)}
+      :mark {:type "bar" :color "#1abc9c"}
+      :encoding {:y {:field "bucket" :type "nominal" :title "Pace"
+                     :sort {:field "sort"}}
+                 :x {:field "count" :type "quantitative" :title "Minutes"}}})))
+
 ;; ## Efficiency Factor
 (when bucketed
   (clerk/vl
@@ -140,7 +168,7 @@
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
                :y {:field "ef_metric" :type "quantitative" :title "EF (metric)"
                    :scale {:zero false}}
-               :tooltip {:field :ef_metric}
+               :tooltip [{:field :ef_metric}]
                :color {:value "#e67e22"}}}))
 
 ;; ## EF vs Heart Rate
@@ -152,6 +180,7 @@
     :encoding {:x {:field "heart_rate" :type "quantitative" :title "HR (bpm)"}
                :y {:field "ef_metric" :type "quantitative" :title "EF (metric)"
                    :scale {:zero false}}
+               :tooltip [{:field :ef_metric} {:field :heart_rate}]
                :color {:field "at" :type "quantitative" :scale {:scheme "viridis"}
                        :legend {:title "Time (s)"}}}}))
 
@@ -163,6 +192,7 @@
     :mark {:type "point"}
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
                :y {:field "cadence" :type "quantitative" :title "Cadence (rpm)"}
+               :tooltip [{:field :cadence}]
                :color {:value "#9b59b6"}}}))
 
 ;; ## Step Length
@@ -173,6 +203,7 @@
     :mark {:type "point"}
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
                :y {:field "step_length" :type "quantitative" :title "Step length (cm)"}
+               :tooltip [{:field :step_length}]
                :color {:value "#9b59b6"}}}))
 
 ;; ## Route Map

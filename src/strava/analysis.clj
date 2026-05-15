@@ -26,6 +26,7 @@
 
 (defn enrich [m]
   (cond-> (assoc m :pace (pace m) :kmph (some-> (:speed m) (* 3.6)))
+    (:cadence m) (update :cadence * 2)
     (efficiency m) (assoc :ef_si (efficiency m)
                           :ef_metric (* 60 (efficiency m)))))
 

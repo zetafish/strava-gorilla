@@ -136,3 +136,7 @@
         doc (Jsoup/parse html)
         text-nodes (.selectXpath doc "//div[@class='content']/p/text()", org.jsoup.nodes.TextNode)]
     (str/join "\n\n" (map #(.text %) text-nodes))))
+
+#_(spit "albi.json"
+      (json/encode (get-activity 16188438273)
+                   {:pretty true}))

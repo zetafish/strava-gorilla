@@ -7,6 +7,7 @@
             [strava.cli.scatter :as scatter]
             [strava.cli.search :as search]
             [strava.cli.sync :as sync]
+            [strava.cli.tag :as tag]
             [strava.cli.trend :as trend]
             [strava.repo :as repo]))
 
@@ -33,6 +34,9 @@
 
 (defn heatmap [args]
   (heatmap/run args))
+
+(defn tag [args]
+  (tag/run args))
 
 (defn fetch-desc [args]
   (let [opts (cli/parse-opts args {:spec {:id {:coerce :long :require true}}})]
