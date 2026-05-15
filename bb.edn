@@ -3,8 +3,19 @@
         dev.weavejester/medley {:mvn/version "1.10.0"}}
  :tasks
  {:requires ([strava.cli :as cli])
-  eff (cli/eff *command-line-args*)
-  sync (cli/sync *command-line-args*)
-  search (cli/search *command-line-args*)
-  details (cli/details *command-line-args*)
-  fetch-desc (cli/fetch-desc *command-line-args*)}}
+  eff {:doc "Compute efficiency factor"
+       :task (cli/eff *command-line-args*)}
+  scatter {:doc "Compute scatter plots"
+           :task (cli/scatter *command-line-args*)}
+  trend {:doc "Perform trend analysis"
+         :task (cli/trend *command-line-args*)}
+  sync {:doc "Sync data from strava"
+        :task (cli/sync *command-line-args*)}
+  search {:doc "Search for activities"
+          :task (cli/search *command-line-args*)}
+  details {:doc "Print activity details"
+           :task (cli/details *command-line-args*)}
+  fetch-desc {:doc "Fetch activity details"
+              :task (cli/fetch-desc *command-line-args*)}
+  clerk {:doc "Start Clerk notebook"
+         :task (shell "clj -X:clerk")}}}
