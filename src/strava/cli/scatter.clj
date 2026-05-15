@@ -40,8 +40,9 @@
 
 (defn scatter-plot [{:keys [width height]} series x-key y-key x-label y-label]
   (let [all-points (mapcat :points series)
-        xs (keep x-key all-points)
-        ys (keep y-key all-points)
+        filtered (filter #(and (x-key %) (y-key %)) all-points)
+        xs (keep x-key filtered)
+        ys (keep y-key filtered)
         x-min (apply min xs)
         x-max (apply max xs)
         y-min (apply min ys)
@@ -128,7 +129,7 @@
                             (fn [i f]
                               {:marker (nth markers (mod i (count markers)))
                                :label (activity-label f)
-                               :points (analysis/scatter-data opts parse-file f)})
+                               :points (analysis/select-data opts (parse-file f))})
                             files)]
                 (doseq [{:keys [label points marker]} series]
                   (println (format "%s %s (%d pts)" marker label (count points))))

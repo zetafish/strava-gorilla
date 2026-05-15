@@ -9,6 +9,12 @@
            :task (cli/scatter *command-line-args*)}
   trend {:doc "Perform trend analysis"
          :task (cli/trend *command-line-args*)}
+  histogram {:doc "Plot histogram of metric"
+             :task (cli/histogram *command-line-args*)}
+  line {:doc "Plot line chart of metric over time"
+        :task (cli/line *command-line-args*)}
+  heatmap {:doc "Plot heatmap of metric1 vs metric2"
+           :task (cli/heatmap *command-line-args*)}
   sync {:doc "Sync data from strava"
         :task (cli/sync *command-line-args*)}
   search {:doc "Search for activities"

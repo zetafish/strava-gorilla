@@ -1,6 +1,12 @@
 (ns strava.analysis
   (:require [clojure.string :as str]))
 
+(def units {:speed "m/s"
+            :kmph "km/h"
+            :pace "s/km"
+            :distance "m"
+            :duration "s"})
+
 (defn avg [k coll]
   (let [vals (keep k coll)]
     (when (seq vals)
@@ -66,17 +72,11 @@
         (re-matches #"\d+s" s)
         (parse-long (str/replace s "s" ""))))))
 
-(defn load-activity-records
-  [{:keys [from to]} parse-file-fn f]
-  (let [records (parse-file-fn f)]
-    (cond->> records
-      from (drop-while #(< (:at %) from))
-      to (take-while #(< (:at %) to)))))
-
-(defn scatter-data [{:keys [interval] :as opts} parse-file-fn f]
-  (->> (load-activity-records opts parse-file-fn f)
-       (bucketize interval)
-       (filter #(and (:heart_rate %) (:ef_metric %)))))
+(defn select-data [{:keys [from to interval]} records]
+  (cond->> records
+    from (drop-while #(< (:at %) from))
+    to (take-while #(< (:at %) to))
+    true (bucketize interval)))
 
 (defn trend-summary [records hr-min hr-max]
   (let [enriched (map enrich records)

@@ -1,6 +1,9 @@
 (ns strava.cli
   (:require [babashka.cli :as cli]
             [strava.cli.eff :as eff]
+            [strava.cli.heatmap :as heatmap]
+            [strava.cli.histogram :as histogram]
+            [strava.cli.line :as line]
             [strava.cli.scatter :as scatter]
             [strava.cli.search :as search]
             [strava.cli.sync :as sync]
@@ -21,6 +24,15 @@
 
 (defn trend [args]
   (trend/run args))
+
+(defn histogram [args]
+  (histogram/run args))
+
+(defn line [args]
+  (line/run args))
+
+(defn heatmap [args]
+  (heatmap/run args))
 
 (defn fetch-desc [args]
   (let [opts (cli/parse-opts args {:spec {:id {:coerce :long :require true}}})]

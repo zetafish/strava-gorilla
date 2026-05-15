@@ -43,6 +43,9 @@
 
 (def start-auth "https://www.strava.com/oauth/authorize?client_id=4863&response_type=code&redirect_uri=http://localhost/exchange_token&approval_prompt=force&scope=read,activity:read_all")
 
+(defn ->kebab-case-keyword [s]
+  (keyword (str/replace s "_" "-")))
+
 (defn exchange-code! [code]
   (let [new-creds (-> (http/request {:url "https://www.strava.com/oauth/token"
                                      :method :post
@@ -51,10 +54,8 @@
                                                    "code" code
                                                    "grant_type" "authorization_code"}})
                       :body
-                      (json/decode true))]
-    (swap! creds assoc
-           :access-token (:access_token new-creds)
-           :refresh-token (:refresh_token new-creds))))
+                      (json/decode ->kebab-case-keyword))]
+    (swap! creds merge new-creds)))
 
 (defn refresh-token! []
   (let [data (-> (http/request {:method :post
@@ -64,7 +65,7 @@
                                               :grant_type "refresh_token"
                                               :refresh_token (:refresh-token @creds)}})
                  :body
-                 (json/decode true))]
+                 (json/decode ->kebab-case-keyword))]
     (swap! creds merge data)))
 
 (defn iso->epoch [iso]
@@ -79,7 +80,8 @@
   (-> request
       (assoc :url (str "https://www.strava.com/api/v3" (:path request)))
       (assoc-in [:headers "Authorization"] (str "Bearer " (:access-token @creds)))
-      (assoc :throw false)))
+      ;; (assoc :throw false)
+      ))
 
 (defn call [request]
   (-> request
