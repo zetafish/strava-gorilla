@@ -96,3 +96,31 @@
        :band-pts (count band-ef)
        :avg-ef (when (seq all-ef)
                  (/ (reduce + all-ef) (count all-ef)))})))
+
+(defn compute-stats [values]
+  (when (seq values)
+    (let [sorted (sort values)
+          n (count sorted)
+          mean (/ (reduce + values) n)
+          median (if (even? n)
+                   (/ (+ (nth sorted (dec (/ n 2))) (nth sorted (/ n 2))) 2.0)
+                   (nth sorted (/ n 2)))
+          variance (/ (reduce + (map #(* (- % mean) (- % mean)) values)) n)
+          sd (Math/sqrt variance)]
+      {:mean mean :median median :sd sd :count n})))
+
+(defn detect-outliers [values sd-threshold]
+  (when-let [{:keys [mean sd]} (compute-stats values)]
+    (let [lower (- mean (* sd-threshold sd))
+          upper (+ mean (* sd-threshold sd))]
+      {:lower lower :upper upper
+       :outliers (filter #(or (< % lower) (> % upper)) values)})))
+
+(defn clip-values [values min-val max-val]
+  (cond-> values
+    min-val (as-> v (map #(max % min-val) v))
+    max-val (as-> v (map #(min % max-val) v))))
+
+(defn count-clipped [values min-val max-val]
+  {:below-min (when min-val (count (filter #(< % min-val) values)))
+   :above-max (when max-val (count (filter #(> % max-val) values)))})

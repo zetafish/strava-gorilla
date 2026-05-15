@@ -1,207 +1,206 @@
-^nextjournal/clerk
 (ns strava.notebook
-  (:require [cheshire.core :as json]
-            [clojure.java.io :as io]
+  {:nextjournal.clerk/visibility {:code :hide}}
+  (:require [babashka.fs :as fs]
+            [cheshire.core :as json]
             [clojure.string :as str]
             [nextjournal.clerk :as clerk]
-            [strava.analysis :as analysis]))
+            [nextjournal.clerk.viewer :as viewer]
+            [strava.analysis :as analysis]
+            [strava.cli.common :as common]
+            [strava.repo :as repo]))
 
-;; # Strava FIT File Analysis
+^{::clerk/visibility {:result :hide}}
+(def opts {:interval 60})
 
-;; Browse and visualize your cached FIT file data.
+^{::clerk/visibility {:result :hide}}
+(defn make-select-viewer [options]
+  (assoc viewer/render-eval-viewer
+         :render-fn (list 'fn '[!state]
+                          (into
+                           [:select {:value '@!state
+                                     :class "px-3 py-2 bg-white rounded text-sm border border-gray-300 outline-none focus:ring w-full"
+                                     :on-change '(fn [e] (reset! !state (.. e -target -value)))}]
+                           (mapv (fn [[v label]] [:option {:value v} label]) options)))))
 
-(def cache-dir ".cache")
+;; ## Month
+^{::clerk/visibility {:result :hide}}
+(def month-options
+  (->> (fs/list-dir ".activities" "*.json")
+       (map #(-> % fs/file-name (str/replace ".json" "")))
+       sort
+       reverse
+       (mapv (fn [m] [m m]))))
 
-;; ## Available Activities
+^{::clerk/sync true ::clerk/viewer (make-select-viewer month-options)}
+(defonce month-select (atom (ffirst month-options)))
 
-(defn activity-id [f]
-  (-> f .getName (str/replace #"\.json$" "") parse-long))
-
-(defn load-records [f]
-  (json/parse-string (slurp f) true))
-
+;; ## Activity
+^{::clerk/visibility {:result :hide}}
 (def activities
-  (->> (file-seq (io/file cache-dir))
-       (filter #(.endsWith (.getName %) ".json"))
-       (remove #(.startsWith (.getName %) "."))
-       (sort-by activity-id)))
+  (json/parse-string (slurp (str ".activities/" @month-select ".json")) true))
 
-(clerk/table
- {:head ["ID" "Records" "Duration" "Distance (km)" "File"]
-  :rows (for [f activities
-              :let [recs (load-records f)
-                    last-rec (last recs)]]
-          [(activity-id f)
-           (count recs)
-           (when last-rec
-             (let [secs (:at last-rec)]
-               (format "%d:%02d" (quot secs 60) (mod secs 60))))
-           (when last-rec
-             (some-> (:distance last-rec) (/ 1000) (format "%.2f")))
-           (str/replace #".json$" "" (.getName f))])})
+^{::clerk/visibility {:result :hide}}
+(def activity-options
+  (mapv (fn [a]
+          [(str (:id a))
+           (format "%s %s %.1fkm"
+                   (subs (:start_date_local a) 0 10)
+                   (:name a)
+                   (/ (:distance a) 1000.0))])
+        activities))
 
-;; ## Activity Detail
+^{::clerk/visibility {:result :hide}}
+(def activity-ids (set (map first activity-options)))
 
-;; Pick an activity ID to explore:
+^{::clerk/sync true ::clerk/viewer (make-select-viewer activity-options)}
+(defonce activity-select (atom nil))
 
-(def activity-id-param 6855227463; 10284924043
-  )
+^{::clerk/visibility {:result :hide}}
+(when-not (activity-ids @activity-select)
+  (reset! activity-select (ffirst activity-options)))
 
-(defn find-activity-file [id]
-  (first (filter #(= (activity-id %) id) activities)))
+^{::clerk/visibility {:result :show}}
+(def activity-id-param (some-> @activity-select parse-long))
 
-(def records
-  (when-let [f (find-activity-file activity-id-param)]
-    (load-records f)))
+^{::clerk/visibility {:result :hide}}
+(def fit-file
+  (when activity-id-param
+    (first (repo/find-by-pattern (str activity-id-param)))))
 
-;; ## Enrichment & Bucketing
+^{::clerk/visibility {:result :hide}}
+(def label (when fit-file (common/activity-label fit-file)))
 
-;; EF (Efficiency Factor) = speed / heart_rate, bucketized over time windows.
+(when label (clerk/md (str "**" label "**")))
 
-(def bucket-window 60)
+^{::clerk/visibility {:result :hide}}
+(def records (when fit-file (common/parse-file fit-file)))
 
+^{::clerk/visibility {:result :hide}}
+(def bucketed-raw (when records (analysis/select-data opts records)))
+
+;; ## Outlier SD
+^{::clerk/sync true ::clerk/viewer (make-select-viewer [["0" "Off"]
+                                                        ["5" "Loose"]
+                                                        ["4" "Normal"]
+                                                        ["3" "Tight"]])}
+(defonce sd-select (atom "0"))
+
+^{::clerk/visibility {:result :hide}}
+(defn mad-filter [values n]
+  (let [sorted (sort values)
+        median (nth sorted (/ (count sorted) 2))
+        mad (nth (sort (map #(Math/abs (- % median)) sorted)) (/ (count sorted) 2))
+        lower (- median (* n mad))
+        upper (+ median (* n mad))]
+    {:lower lower :upper upper}))
+
+^{::clerk/visibility {:result :hide}}
 (def bucketed
-  (when records
-    (analysis/bucketize bucket-window records)))
+  (when bucketed-raw
+    (let [sd (parse-double @sd-select)]
+      (if (pos? sd)
+        (let [paces (keep :pace bucketed-raw)
+              {:keys [lower upper]} (mad-filter paces sd)]
+          (filter #(if-let [p (:pace %)] (and (>= p lower) (<= p upper)) true) bucketed-raw))
+        bucketed-raw))))
 
-;; ### Efficiency Factor (EF)
-
-;; EF = speed / heart_rate. Higher is better — more distance per heart beat.
-;; The metric version (×60) is easier to read.
-
+;; ## Heart Rate
 (when bucketed
   (clerk/vl
-   {:data {:values bucketed}
-    :mark "line"
+   {:width 600
+    :data {:values bucketed}
+    :mark {:type "point"}
+    :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
+               :y {:field "heart_rate" :type "quantitative" :title "HR (bpm)"
+                   :scale {:zero false}}
+               :color {:value "#e74c3c"}}}))
+
+;; ## Pace
+(when bucketed
+  (let [fmt (fn [s] (format "%dm%ds" (int (quot s 60)) (int (mod s 60))))
+        data (keep #(when-let [p (:pace %)] {:at (:at %) :pace p :pace_fmt (fmt p)}) bucketed)]
+    (when (seq data)
+      (clerk/vl
+       {:width 600
+        :data {:values data}
+        :mark {:type "point"}
+        :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
+                   :y {:field "pace" :type "quantitative" :title "Pace (min/km)"
+                       :scale {:zero false}
+                       :axis {:labelExpr "floor(datum.value / 60) + 'm' + floor(datum.value % 60) + 's'"}}
+                   :color {:value "#1abc9c"}
+                   :tooltip [{:field "pace_fmt" :type "nominal" :title "Pace"}]}}))))
+
+;; ## Efficiency Factor
+(when bucketed
+  (clerk/vl
+   {:width 600
+    :data {:values bucketed}
+    :mark {:type "point"}
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
                :y {:field "ef_metric" :type "quantitative" :title "EF (metric)"
                    :scale {:zero false}}
+               :tooltip {:field :ef_metric}
                :color {:value "#e67e22"}}}))
 
-;; ### EF vs Heart Rate
-
+;; ## EF vs Heart Rate
 (when bucketed
   (clerk/vl
-   {:data {:values bucketed}
+   {:width 600
+    :data {:values bucketed}
     :mark {:type "point" :filled true :opacity 0.6 :size 30}
-    :encoding {:x {:field "heart_rate" :type "quantitative" :title "Heart Rate (bpm)"}
+    :encoding {:x {:field "heart_rate" :type "quantitative" :title "HR (bpm)"}
                :y {:field "ef_metric" :type "quantitative" :title "EF (metric)"
                    :scale {:zero false}}
                :color {:field "at" :type "quantitative" :scale {:scheme "viridis"}
                        :legend {:title "Time (s)"}}}}))
 
-;; ### EF Pace
-
+;; ## Cadence
 (when bucketed
   (clerk/vl
-   {:data {:values bucketed}
-    :mark "line"
+   {:width 600
+    :data {:values (filter :cadence bucketed)}
+    :mark {:type "point"}
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-               :y {:field "pace" :type "quantitative" :title "Pace (s/km)"}
-               :color {:value "#1abc9c"}}}))
+               :y {:field "cadence" :type "quantitative" :title "Cadence (rpm)"}
+               :color {:value "#9b59b6"}}}))
 
-;; ### Time Series
-
-;; Heart rate, speed, and altitude over the course of the activity.
-
-(when records
+;; ## Step Length
+(when bucketed
   (clerk/vl
-   {:data {:values records}
-    :layer [{:mark "line"
-             :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-                        :y {:field "heart_rate" :type "quantitative" :title "Heart Rate (bpm)"
-                            :scale {:zero false}}
-                        :color {:value "#e74c3c"}}}
-            {:mark "line"
-             :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-                        :y {:field "speed" :type "quantitative" :title "Speed (m/s)"
-                            :scale {:zero false}}
-                        :color {:value "#3498db"}}}
-            {:mark "line"
-             :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-                        :y {:field "altitude" :type "quantitative" :title "Altitude (m)"
-                            :scale {:zero false}}
-                        :color {:value "#27ae60"}}}]}))
-
-;; ### Heart Rate
-
-(when records
-  (clerk/vl
-   {:data {:values records}
-    :mark "line"
+   {:width 600
+    :data {:values (filter :step_length bucketed)}
+    :mark {:type "point"}
     :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-               :y {:field "heart_rate" :type "quantitative" :title "Heart Rate (bpm)"}
-               :color {:value "#e74c3c"}}}))
+               :y {:field "step_length" :type "quantitative" :title "Step length (cm)"}
+               :color {:value "#9b59b6"}}}))
 
-;; ### Speed
-
-(when records
-  (clerk/vl
-   {:data {:values records}
-    :mark "line"
-    :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-               :y {:field "speed" :type "quantitative" :title "Speed (m/s)"}
-               :color {:value "#3498db"}}}))
-
-;; ### Altitude Profile
-
-(when records
-  (clerk/vl
-   {:data {:values records}
-    :mark "line"
-    :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-               :y {:field "altitude" :type "quantitative" :title "Altitude (m)"}
-               :color {:value "#27ae60"}}}))
-
-;; ### Route Map
-
+;; ## Route Map
 (when records
   (clerk/vl
    {:data {:values (keep #(when (and (:position_lat %) (:position_long %))
-                            {:lat (:position_lat %)
-                             :lng (:position_long %)})
+                            {:lat (:position_lat %) :lng (:position_long %)})
                          records)}
     :mark {:type "line" :stroke "#3498db" :strokeWidth 2}
     :encoding {:latitude {:field "lat" :type "quantitative"}
                :longitude {:field "lng" :type "quantitative"}}}))
 
-;; ### Cadence
-
-(when records
-  (clerk/vl
-   {:data {:values (keep #(when (:cadence %) %) records)}
-    :mark "line"
-    :encoding {:x {:field "at" :type "quantitative" :title "Time (s)"}
-               :y {:field "cadence" :type "quantitative" :title "Cadence (rpm)"}
-               :color {:value "#9b59b6"}}}))
-
-;; ### Stats Summary
-
+;; ## Stats
 (when bucketed
-  (let [hrs (keep :heart_rate bucketed)
-        speeds (keep :speed bucketed)
-        alts (keep :altitude records)
-        cadences (keep :cadence bucketed)
-        efs (keep :ef_metric bucketed)]
+  (let [stats-for (fn [k label]
+                    (when-let [vals (seq (keep k bucketed))]
+                      (let [{:keys [mean median sd count]} (analysis/compute-stats vals)]
+                        [label count
+                         (common/format-axis-value k (apply min vals))
+                         (common/format-axis-value k (apply max vals))
+                         (common/format-axis-value k mean)
+                         (common/format-axis-value k median)
+                         (common/format-axis-value k sd)])))]
     (clerk/table
-     {:head ["Metric" "Min" "Max" "Avg"]
-      :rows [["Heart Rate (bpm)"
-              (apply min hrs)
-              (apply max hrs)
-              (int (double (/ (reduce + hrs) (count hrs))))]
-             ["Speed (m/s)"
-              (format "%.2f" (apply min speeds))
-              (format "%.2f" (apply max speeds))
-              (format "%.2f" (double (/ (reduce + speeds) (count speeds))))]
-             ["Altitude (m)"
-              (format "%.1f" (apply min alts))
-              (format "%.1f" (apply max alts))
-              (format "%.1f" (double (/ (reduce + alts) (count alts))))]
-             ["Cadence (rpm)"
-              (apply min cadences)
-              (apply max cadences)
-              (int (double (/ (reduce + cadences) (count cadences))))]
-             ["EF (metric)"
-              (format "%.3f" (apply min efs))
-              (format "%.3f" (apply max efs))
-              (format "%.3f" (double (/ (reduce + efs) (count efs))))]]})))
+     {:head ["Metric" "N" "Min" "Max" "Mean" "Median" "SD"]
+      :rows (keep identity
+                  [(stats-for :heart_rate "HR (bpm)")
+                   (stats-for :pace "Pace (s/km)")
+                   (stats-for :ef_metric "EF")
+                   (stats-for :cadence "Cadence (rpm)")
+                   (stats-for :step_length "Step length (cm)")])})))

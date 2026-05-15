@@ -110,6 +110,9 @@
          :query-params {:keys (str/join "," keys)
                         :key_by_type true}}))
 
+(defn get-gear [gear-id]
+  (call {:path (str "/gear/" gear-id)}))
+
 (defn download-original
   "No rate limit, uses session cookie"
   [activity-id file]

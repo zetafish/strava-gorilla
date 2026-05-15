@@ -1,4 +1,10 @@
 {:deps {com.garmin/fit {:mvn/version "21.176.0"}
+        org.clojure/data.xml {:mvn/version "0.0.8"}
+        org.clojure/data.csv {:mvn/version "1.1.1"}
+        dev.weavejester/medley {:mvn/version "1.10.0"}
+        org.jsoup/jsoup {:mvn/version "1.22.2"}
+        babashka/fs {:mvn/version "0.5.33"}
+        org.babashka/cli {:mvn/version "0.8.67"}
         cheshire/cheshire {:mvn/version "5.13.0"}}
  :aliases {:clerk {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.18.1158"}}
                    :exec-fn nextjournal.clerk/serve!

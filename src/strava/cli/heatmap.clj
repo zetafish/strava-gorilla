@@ -1,14 +1,8 @@
 (ns strava.cli.heatmap
   (:require [babashka.cli :as cli]
             [strava.analysis :as analysis]
-            [strava.repo :as repo]
-            [strava.track :as track]))
-
-(def metrics {:hr {:key :heart_rate :label "HR (bpm)"}
-              :ef {:key :ef_metric :label "EF"}
-              :pace {:key :pace :label "Pace (s/km)"}
-              :cadence {:key :cadence :label "Cadence (rpm)"}
-              :step-length {:key :step_length :label "Step length (cm)"}})
+            [strava.cli.common :as common]
+            [strava.repo :as repo]))
 
 (def spec {:pattern {:alias :p :coerce [] :require true}
            :metric1 {:default "pace" :desc "Y-axis metric: hr, ef, pace, cadence, step-length"}
@@ -31,11 +25,6 @@
     (println (cli/format-opts {:spec spec}))
     true))
 
-(defn format-axis-value [key val]
-  (if (= key :pace)
-    (format "%dm%ds" (int (quot val 60)) (int (mod val 60)))
-    (format "%.0f" (double val))))
-
 (defn intensity-char [density]
   (cond
     (< density 0.2) " "
@@ -43,21 +32,6 @@
     (< density 0.6) "▒"
     (< density 0.8) "▓"
     :else "█"))
-
-(defn compute-stats [values]
-  (when (seq values)
-    (let [n (count values)
-          mean (/ (reduce + values) n)
-          variance (/ (reduce + (map #(* (- % mean) (- % mean)) values)) n)
-          sd (Math/sqrt variance)]
-      {:mean mean :sd sd})))
-
-(defn detect-outliers [values sd-threshold]
-  (when-let [{:keys [mean sd]} (compute-stats values)]
-    (let [lower (- mean (* sd-threshold sd))
-          upper (+ mean (* sd-threshold sd))]
-      {:lower lower :upper upper
-       :outliers (filter #(or (< % lower) (> % upper)) values)})))
 
 (defn heatmap-plot [{:keys [width height]} metric1-key metric1-label metric2-key metric2-label values1 values2 clip-min1 clip-max1 clip-min2 clip-max2]
   (when (seq values1)
@@ -90,36 +64,27 @@
 
       (doseq [row (range h)]
         (let [val1 (+ min1 (* (- h row) bin-size1))]
-          (print (format "%8s |" (format-axis-value metric1-key val1))))
+          (print (format "%8s |" (common/format-axis-value metric1-key val1))))
         (doseq [col (range w)]
           (print (intensity-char (get-in normalized-grid [row col] 0))))
         (println))
 
       (println (str (apply str (repeat 10 " ")) (apply str (repeat w "-"))))
-      (let [min-lbl (format-axis-value metric2-key min2)
-            max-lbl (format-axis-value metric2-key max2)]
+      (let [min-lbl (common/format-axis-value metric2-key min2)
+            max-lbl (common/format-axis-value metric2-key max2)]
         (println (format "%8s %s%s%s"
                          " "
                          min-lbl
                          (apply str (repeat (- w (count min-lbl) (count max-lbl)) " "))
                          max-lbl))))))
 
-(defn activity-label [f]
-  (if-let [activity (some-> (repo/extract-id f) repo/find-activity)]
-    (let [date (some-> (:start_date_local activity) (subs 0 10))]
-      (format "%s %s %.0fkm" date (:name activity) (/ (:distance activity) 1000.0)))
-    (str f)))
-
-(defn parse-file [f]
-  (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail))
-
 (defn run [args]
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})
             metric1 (keyword (:metric1 opts))
             metric2 (keyword (:metric2 opts))
-            metric1-config (get metrics metric1)
-            metric2-config (get metrics metric2)]
+            metric1-config (get common/metrics metric1)
+            metric2-config (get common/metrics metric2)]
         (if (and metric1-config metric2-config)
           (let [files (->> (mapcat #(repo/find-by-pattern %) (:pattern opts))
                            distinct
@@ -127,12 +92,12 @@
                            (take 1))]
             (if (seq files)
               (let [f (first files)
-                    records (parse-file f)
+                    records (common/parse-file f)
                     bucketed (analysis/select-data opts records)
                     values1 (keep (:key metric1-config) bucketed)
                     values2 (keep (:key metric2-config) bucketed)
-                    outliers1 (when (pos? (:sd opts)) (detect-outliers values1 (:sd opts)))
-                    outliers2 (when (pos? (:sd opts)) (detect-outliers values2 (:sd opts)))
+                    outliers1 (when (pos? (:sd opts)) (analysis/detect-outliers values1 (:sd opts)))
+                    outliers2 (when (pos? (:sd opts)) (analysis/detect-outliers values2 (:sd opts)))
                     outlier-set1 (when outliers1 (set (:outliers outliers1)))
                     outlier-set2 (when outliers2 (set (:outliers outliers2)))
                     filtered-pairs (filter (fn [[v1 v2]]
@@ -141,13 +106,13 @@
                                            (map vector values1 values2))
                     filtered1 (map first filtered-pairs)
                     filtered2 (map second filtered-pairs)]
-                (println (activity-label f))
+                (println (common/activity-label f))
                 (let [clip-vals1 (when (:sd-clip opts)
-                                   (when-let [{:keys [mean sd]} (compute-stats filtered1)]
+                                   (when-let [{:keys [mean sd]} (analysis/compute-stats filtered1)]
                                      {:min (- mean (* (:sd-clip opts) sd))
                                       :max (+ mean (* (:sd-clip opts) sd))}))
                       clip-vals2 (when (:sd-clip opts)
-                                   (when-let [{:keys [mean sd]} (compute-stats filtered2)]
+                                   (when-let [{:keys [mean sd]} (analysis/compute-stats filtered2)]
                                      {:min (- mean (* (:sd-clip opts) sd))
                                       :max (+ mean (* (:sd-clip opts) sd))}))]
                   (when (and (seq filtered1) (seq filtered2))
@@ -161,6 +126,6 @@
                     (let [removed (- (count values1) (count filtered1))]
                       (when (pos? removed)
                         (println)
-                        (println (format "Removed %d outliers (>%g SD)" removed (double (:sd opts)))))))))
+                        (println (format "Removed %d outliers (>%.1f SD)" removed (double (:sd opts)))))))))
               (println "No fit file found for" (:pattern opts))))
           (println "Invalid metrics. Available: hr, ef, pace, cadence, step-length")))))
