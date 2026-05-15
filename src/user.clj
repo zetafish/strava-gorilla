@@ -1,14 +1,14 @@
-(ns strava.user
+(ns user
   (:require [cheshire.core :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [cognitect.transit :as transit]
             [strava.api :as api]
             [strava.cli.sync :as sync]
+            [strava.parser.gpx :as gpx]
+            [strava.parser.tcx :as tcx]
             [strava.repo :as repo]
-            [strava.track :as track]
-            [strava.track.gpx :as gpx]
-            [strava.track.tcx :as tcx]))
+            [strava.track :as track]))
 
 (doseq [y [;; 2026
            2025
@@ -24,3 +24,5 @@
            2015
            2014]]
   (sync/sync-year y))
+
+(api/refresh-token!)

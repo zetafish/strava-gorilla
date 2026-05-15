@@ -57,7 +57,8 @@
   (let [desc (api/fetch-description id)
         f (fs/file desc-dir (str id ".txt"))]
     (fs/create-dirs desc-dir)
-    (spit f desc)))
+    (spit f desc)
+    desc))
 
 (def activities-dir ".activities")
 

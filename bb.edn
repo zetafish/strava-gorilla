@@ -6,4 +6,5 @@
   eff (cli/eff *command-line-args*)
   sync (cli/sync *command-line-args*)
   search (cli/search *command-line-args*)
+  details (cli/details *command-line-args*)
   fetch-desc (cli/fetch-desc *command-line-args*)}}

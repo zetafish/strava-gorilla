@@ -1,4 +1,4 @@
-(ns strava.track.gpx
+(ns strava.parser.gpx
   (:require [clojure.data.xml :as xml]
             [clojure.java.io :as io]))
 

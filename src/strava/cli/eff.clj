@@ -3,7 +3,8 @@
             [cheshire.core :as json]
             [clojure.string :as str]
             [strava.repo :as repo]
-            [strava.track :as track]))
+            [strava.track :as track]
+            [strava.analysis :as analysis]))
 
 (defn at->str [seconds]
   (when seconds
@@ -82,38 +83,11 @@
       (let [decline (* 100.0 (/ (- (first efs) (last efs)) (first efs)))]
         (println (format "  EF Decline: %.1f%%" decline))))))
 
-(defn parse-at
-  "Parse duration/offset string to seconds. Supports: 1h, 30m, 90s, 1h30, 21h15m, 21h15"
-  [s]
-  (when s
-    (let [s (str/trim s)]
-      (cond
-        ;; 21h15 or 1h30 (hours + minutes, m optional)
-        (re-matches #"\d+h\d+m?" s)
-        (let [[_ h m] (re-matches #"(\d+)h(\d+)m?" s)]
-          (+ (* (parse-long h) 3600) (* (parse-long m) 60)))
-
-        ;; 5h
-        (re-matches #"\d+h" s)
-        (* (parse-long (str/replace s "h" "")) 3600)
-
-        ;; 30m
-        (re-matches #"\d+m" s)
-        (* (parse-long (str/replace s "m" "")) 60)
-
-        ;; 90s
-        (re-matches #"\d+s" s)
-        (parse-long (str/replace s "s" ""))
-
-        :else
-        (do (println (str "Invalid time format: " s))
-            (System/exit 1))))))
-
 (def spec {:pattern {:alias :p :coerce [] :require true}
-           :interval {:alias :i :coerce parse-at :default 3600 :desc "Bucket interval (e.g. 5m, 10s, 1h)"}
+           :interval {:alias :i :coerce analysis/parse-at :default 3600 :desc "Bucket interval (e.g. 5m, 10s, 1h)"}
            :format {:alias :f :default "table" :validate #{"table" "csv" "json"}}
-           :from {:coerce parse-at :desc "Start time as offset (e.g. 21h15, 3h, 120m, 7200s)"}
-           :to {:coerce parse-at :desc "End time as offset (e.g. 21h15, 3h, 120m, 7200s)"}})
+           :from {:coerce analysis/parse-at :desc "Start time as offset (e.g. 21h15, 3h, 120m, 7200s)"}
+           :to {:coerce analysis/parse-at :desc "End time as offset (e.g. 21h15, 3h, 120m, 7200s)"}})
 
 (defn help-requested [args]
   (when (or (not (seq args))

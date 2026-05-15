@@ -1,4 +1,4 @@
-(ns strava.track.tcx
+(ns strava.parser.tcx
   (:require [clojure.data.xml :as xml]
             [clojure.string :as str]))
 

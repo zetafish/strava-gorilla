@@ -3,9 +3,10 @@
             [cheshire.core :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [strava.track.fit :as fit]
-            [strava.track.gpx :as gpx]
-            [strava.track.tcx :as tcx]))
+            [strava.analysis :as analysis]
+            [strava.parser.fit :as fit]
+            [strava.parser.gpx :as gpx]
+            [strava.parser.tcx :as tcx]))
 
 (def cache-dir ".cache")
 
@@ -55,48 +56,12 @@
   (let [dur (detect-record-duration records)]
     (mapv #(assoc % :duration dur) records)))
 
-(defn bucket-fn [ts start-ts window]
-  (* window (quot (- ts start-ts) window)))
-
-(defn avg [k coll]
-  (let [vals (keep k coll)]
-    (when (seq vals)
-      (double (/ (reduce + vals) (count vals))))))
-
-(defn efficiency [{:keys [speed heart_rate]}]
-  (when (and speed heart_rate)
-    (/ speed heart_rate)))
-
-(defn pace [{:keys [speed]}]
-  (when (pos? speed)
-    (int (/ 3600 (* 3.6 speed)))))
-
-(defn kmph [{:keys [speed]}]
-  (* 3.6 speed))
-
-(defn enrich [m]
-  (cond-> (assoc m :pace (pace m) :kmph (some-> (:speed m) (* 3.6)))
-    (efficiency m) (assoc :ef_si (efficiency m)
-                          :ef_metric (* 60 (efficiency m)))))
-
-(defn agg [coll]
-  (case (count coll)
-    0 nil
-    1 (assoc (first coll) :pts 1)
-    (enrich {:at (:at (first coll))
-             :timestamp (:timestamp (first coll))
-             :heart_rate (some-> (avg :heart_rate coll) int)
-             :cadence (some-> (avg :cadence coll) int)
-             :step_length (some-> (avg :step_length coll) int)
-             :distance (:distance (last coll))
-             :duration (reduce + (keep :duration coll))
-             :speed (/ (- (:distance (last coll)) (:distance (first coll)))
-                       (- (:timestamp (last coll)) (:timestamp (first coll))))
-             :pts (count coll)})))
-
-(defn bucketize [window records]
-  (let [start-ts (:timestamp (first records))]
-    (->> (group-by #(bucket-fn (:timestamp %) start-ts window) records)
-         vals
-         (sort-by (comp :timestamp first))
-         (map agg))))
+;; Re-export analysis functions for backward compatibility
+(def avg analysis/avg)
+(def efficiency analysis/efficiency)
+(def pace analysis/pace)
+(def kmph analysis/kmph)
+(def enrich analysis/enrich)
+(def bucket-fn analysis/bucket-fn)
+(def agg analysis/agg)
+(def bucketize analysis/bucketize)

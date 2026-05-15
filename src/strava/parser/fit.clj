@@ -1,4 +1,4 @@
-(ns strava.track.fit
+(ns strava.parser.fit
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
             [clojure.data.csv :as csv]
