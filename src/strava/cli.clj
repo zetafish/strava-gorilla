@@ -1,5 +1,6 @@
 (ns strava.cli
   (:require [babashka.cli :as cli]
+            [strava.api :as api]
             [strava.cli.eff :as eff]
             [strava.cli.heatmap :as heatmap]
             [strava.cli.histogram :as histogram]
@@ -46,3 +47,7 @@
 (defn details [args]
   (let [opts (cli/parse-opts args {:spec {:id {:coerce :long :require true}}})]
     (println (repo/get-description-by-activity-id (:id opts)))))
+
+(defn refresh-token [_args]
+  (api/refresh-token!)
+  (println "Token refreshed"))

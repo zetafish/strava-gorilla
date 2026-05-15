@@ -17,11 +17,15 @@
            :task (cli/heatmap *command-line-args*)}
   sync {:doc "Sync data from strava"
         :task (cli/sync *command-line-args*)}
+  tag {:doc "Manage activity tags"
+       :task (cli/tag *command-line-args*)}
   search {:doc "Search for activities"
           :task (cli/search *command-line-args*)}
   details {:doc "Print activity details"
            :task (cli/details *command-line-args*)}
   fetch-desc {:doc "Fetch activity details"
               :task (cli/fetch-desc *command-line-args*)}
+  refresh-token {:doc "Refresh Strava OAuth token"
+                 :task (cli/refresh-token *command-line-args*)}
   clerk {:doc "Start Clerk notebook"
          :task (shell "clj -X:clerk")}}}
