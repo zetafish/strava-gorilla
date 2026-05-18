@@ -1,6 +1,7 @@
 (ns strava.cli
   (:require [babashka.cli :as cli]
             [strava.api :as api]
+            [strava.cli.compare :as compare]
             [strava.cli.eff :as eff]
             [strava.cli.heatmap :as heatmap]
             [strava.cli.histogram :as histogram]
@@ -48,6 +49,16 @@
   (let [opts (cli/parse-opts args {:spec {:id {:coerce :long :require true}}})]
     (println (repo/get-description-by-activity-id (:id opts)))))
 
+(defn compare-runs [args]
+  (compare/run args))
+
 (defn refresh-token [_args]
   (api/refresh-token!)
   (println "Token refreshed"))
+
+(def table
+  [;; {:cmds ["plot"] :fn print-plot-help}
+   {:cmds ["plot" "histogram"] :fn #(histogram/run (:opts %))}
+   {:cmds ["plot" "scatter"] :fn #(scatter/run (:opts %))}
+   ;; {:cmds ["plot" "line"]} :fn
+   ])

@@ -7,10 +7,11 @@
             [nextjournal.clerk.viewer :as viewer]
             [strava.analysis :as analysis]
             [strava.cli.common :as common]
-            [strava.repo :as repo]))
+            [strava.repo :as repo]
+            [strava.tags :as tags]))
 
 ^{::clerk/visibility {:result :hide}}
-(def opts {:interval 60})
+(def opts {:interval 15})
 
 ^{::clerk/visibility {:result :hide}}
 (defn make-select-viewer [options]
@@ -32,7 +33,45 @@
        (mapv (fn [m] [m m]))))
 
 ^{::clerk/sync true ::clerk/viewer (make-select-viewer month-options)}
-(defonce month-select (atom (ffirst month-options)))
+(def month-select (atom (ffirst month-options)))
+
+;; ## Tags
+^{::clerk/visibility {:result :hide}}
+(defonce all-tags
+  (let [manual (tags/load-tags)
+        all (tags/load-all-activities)]
+    (->> all
+         (mapcat (fn [a]
+                   (into (get manual (:id a) #{})
+                         (tags/auto-tags a))))
+         distinct
+         sort
+         vec)))
+
+^{::clerk/visibility {:result :hide}}
+(defn make-checkbox-viewer [options]
+  (assoc viewer/render-eval-viewer
+         :render-fn (list 'fn '[!state]
+                          (list 'let ['toggle '(fn [tag]
+                                                 (swap! !state
+                                                        (fn [s]
+                                                          (let [s (or s #{})]
+                                                            (if (contains? s tag)
+                                                              (disj s tag)
+                                                              (conj s tag))))))]
+                                (into [:div {:class "flex flex-wrap gap-2 py-2"}]
+                                      (mapv (fn [tag]
+                                              (let [tag-str (name tag)]
+                                                (list 'let ['checked? (list 'contains? (list 'or '@!state '#{}) tag-str)]
+                                                      [:label {:class "inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-300 text-sm cursor-pointer select-none hover:bg-gray-50"}
+                                                       [:input {:type "checkbox"
+                                                                :checked 'checked?
+                                                                :on-change (list 'fn '[_] (list 'toggle tag-str))}]
+                                                       tag-str])))
+                                            options))))))
+
+^{::clerk/sync true ::clerk/viewer (make-checkbox-viewer all-tags)}
+(defonce tag-select (atom #{}))
 
 ;; ## Activity
 ^{::clerk/visibility {:result :hide}}
@@ -52,8 +91,10 @@
 ^{::clerk/visibility {:result :hide}}
 (def activity-ids (set (map first activity-options)))
 
+(last activity-ids)
+
 ^{::clerk/sync true ::clerk/viewer (make-select-viewer activity-options)}
-(defonce activity-select (atom nil))
+(def activity-select (atom nil))
 
 ^{::clerk/visibility {:result :hide}}
 (when-not (activity-ids @activity-select)
