@@ -4,10 +4,12 @@
             [strava.cli.compare :as compare]
             [strava.cli.eff :as eff]
             [strava.cli.heatmap :as heatmap]
+            [strava.cli.load :as load-cmd]
             [strava.cli.histogram :as histogram]
             [strava.cli.line :as line]
             [strava.cli.scatter :as scatter]
             [strava.cli.search :as search]
+            [strava.cli.similar :as similar]
             [strava.cli.sync :as sync]
             [strava.cli.tag :as tag]
             [strava.cli.trend :as trend]
@@ -48,6 +50,12 @@
 (defn details [args]
   (let [opts (cli/parse-opts args {:spec {:id {:coerce :long :require true}}})]
     (println (repo/get-description-by-activity-id (:id opts)))))
+
+(defn load [args]
+  (load-cmd/run args))
+
+(defn similar [args]
+  (similar/run args))
 
 (defn compare-runs [args]
   (compare/run args))

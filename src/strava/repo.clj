@@ -3,55 +3,31 @@
             [cheshire.core :as json]
             [clojure.pprint]
             [clojure.string :as str]
-            [strava.api :as api]))
+            [strava.api :as api]
+            [strava.tags :as tags]))
 
 (def repo-dir ".repo")
 
 (def desc-dir ".desc")
 
-(def pattern #".repo/.*_(\d+)_.*\.fit")
+(def activities-dir ".activities")
 
-(defn load-index []
-  (->> (fs/list-dir repo-dir)
+(defn load-activities []
+  (->> (fs/list-dir activities-dir)
        (map str)
-       (keep #(re-matches pattern %))
-       (map (fn [[f n]] [(parse-long n) f]))
-       (into {})))
+       (map slurp)
+       (mapcat #(json/decode % true))))
 
-(def index (atom (load-index)))
-
-(defn formatted-start-date [activity]
-  (-> (java.time.format.DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm")
-      (.withZone (java.time.ZoneId/systemDefault))
-      (.format (java.time.Instant/parse (:start_date activity)))))
-
-(defn short-name [activity]
-  (let [s (:name activity "noname")]
-    (str/replace (str/trim (subs s 0 (min (count s) 50)))
-                 "/"
-                 "_")))
-
-(defn distance [activity]
-  (format "%5.1f km" (/ (:distance activity) 1000)))
+(def activities (atom (load-activities)))
 
 (defn fit-file-name [activity]
-  (str "["
-       (formatted-start-date activity)
-       "]_["
-       (distance activity)
-       "]_"
-       (:id activity)
-       "_["
-       (short-name activity)
-       "].fit"))
+  (str (:id activity) ".fit"))
 
 (defn get-fit-file-by-activity [activity]
-  (if-let [f (get @index (:id activity))]
-    f
-    (let [f (fs/file repo-dir (fit-file-name activity))]
-      (api/download-original (:id activity) f)
-      (swap! index assoc (:id activity) f)
-      f)))
+  (let [f (fs/file repo-dir (fit-file-name activity))]
+    (when-not (fs/exists? f)
+      (api/download-original (:id activity) f))
+    f))
 
 (defn get-description-by-activity-id [id]
   (let [desc (api/fetch-description id)
@@ -60,21 +36,30 @@
     (spit f desc)
     desc))
 
-(def activities-dir ".activities")
-
 (defn extract-id [fit-path]
-  (some-> (re-matches pattern (str fit-path)) second parse-long))
+  (some-> (re-matches #".*/(\d+)\.fit" (str fit-path)) second parse-long))
+
+(defn find-activities [{:keys [limit
+                               id from to pattern hr-min hr-max
+                               dist-min dist-max
+                               tag no-tag]}]
+  (let [start-date #(some-> (:start_date %) (subs 0 10))]
+    (cond->> @activities
+      id (filter #(= id (:id %)))
+      from (filter #(>= 0 (compare from (start-date %))))
+      to (filter #(<= 0 (compare to (start-date %))))
+      pattern (filter #(str/includes? (str/lower-case (:name %)) (str/lower-case pattern)))
+      hr-min (filter #(or (not (:has_heartrate %)) (>= (:average_heartrate %) hr-min)))
+      hr-max (filter #(or (not (:has_heartrate %)) (<= (:average_heartrate %) hr-max)))
+      dist-min (filter #(>= (:distance %) (* 1000 dist-min)))
+      dist-max (filter #(<= (:distance %) (* 1000 dist-max)))
+      tag (filter #(every? (fn [t] (contains? (tags/all-tags (:id %) %) (keyword t))) tag))
+      no-tag (filter #(every? (fn [t] (not (contains? (tags/all-tags (:id %) %) (keyword t)))) no-tag))
+      true (sort-by :start_data)
+      limit (take limit))))
 
 (defn find-activity [id]
-  (some (fn [f]
-          (->> (json/parse-string (slurp (str f)) true)
-               (filter #(= (:id %) id))
-               first))
-        (fs/list-dir activities-dir)))
+  (first (find-activities {:id id})))
 
-(defn xform-by-pattern [pat]
-  (filter #(str/includes? (str/lower-case %) (str/lower-case pat))))
-
-(defn find-by-pattern [& coll]
-  (let [xf (apply comp (map #(xform-by-pattern %) coll))]
-    (sort (transduce xf conj (vals @index)))))
+(defn find-by-pattern [pat]
+  (find-activities {:pattern pat}))

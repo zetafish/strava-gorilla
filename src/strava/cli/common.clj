@@ -9,6 +9,18 @@
               :cadence {:key :cadence :label "Cadence (rpm)"}
               :step-length {:key :step_length :label "Step length (cm)"}})
 
+(def selector-spec {:limit {:alias :n :coerce :long :default 20 :desc "Max number of activities"}
+                    :id {:desc "Avtivity ID"}
+                    :pattern {:alias :p :desc "Match part of the name"}
+                    :tag {:alias :t :coerce [] :desc "Filter by tag"}
+                    :no-tag {:alias :T :coerce [] :desc "Exclude activities with tag"}
+                    :from {:desc "Start date (YYYY-MM-DD)"}
+                    :to {:desc "End date (YYYY-MM-DD)"}
+                    :dist-min {:coerce :int :desc "Min distance in km"}
+                    :dist-max {:coerce :int :desc "Max distance in km"}
+                    :hr-min {:coerce :int :desc "Min heartrate"}
+                    :hr-max {:coerce :int :desc "Max heartrate"}})
+
 (defn format-axis-value [key val]
   (cond
     (= key :pace) (format "%dm%ds" (int (quot val 60)) (int (mod val 60)))

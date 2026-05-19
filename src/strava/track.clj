@@ -39,7 +39,8 @@
 
 (defn parse-file [fit-file]
   (fs/create-dirs cache-dir)
-  (let [id (second (re-matches #".*_(\d+)_.*\.fit" fit-file))
+  (let [id (or ; (second (re-matches #".*_(\d+)_.*\.fit" fit-file))
+            (second (re-matches #".*?(\d+)\.fit" fit-file)))
         f (fs/file cache-dir (str id ".json"))]
     (if (fs/exists? f)
       (json/parse-string (slurp f) true)
