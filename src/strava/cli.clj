@@ -4,12 +4,13 @@
             [strava.cli.compare :as compare]
             [strava.cli.eff :as eff]
             [strava.cli.heatmap :as heatmap]
-            [strava.cli.load :as load-cmd]
             [strava.cli.histogram :as histogram]
             [strava.cli.line :as line]
+            [strava.cli.load :as load-cmd]
             [strava.cli.scatter :as scatter]
             [strava.cli.search :as search]
             [strava.cli.similar :as similar]
+            [strava.cli.stats :as stats]
             [strava.cli.sync :as sync]
             [strava.cli.tag :as tag]
             [strava.cli.trend :as trend]
@@ -60,6 +61,9 @@
 (defn compare-runs [args]
   (compare/run args))
 
+(defn stats [args]
+  (stats/run args))
+
 (defn refresh-token [_args]
   (api/refresh-token!)
   (println "Token refreshed"))
@@ -68,5 +72,6 @@
   [;; {:cmds ["plot"] :fn print-plot-help}
    {:cmds ["plot" "histogram"] :fn #(histogram/run (:opts %))}
    {:cmds ["plot" "scatter"] :fn #(scatter/run (:opts %))}
-   ;; {:cmds ["plot" "line"]} :fn
+
+;; {:cmds ["plot" "line"]} :fn
    ])

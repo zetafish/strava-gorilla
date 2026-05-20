@@ -1,33 +1,16 @@
 (ns strava.cli.eff
   (:require [babashka.cli :as cli]
             [strava.analysis :as analysis]
+            [strava.format :as fmt]
             [strava.repo :as repo]
             [strava.table :as table]
             [strava.track :as track]))
 
-(defn at->str [seconds]
-  (when seconds
-    (let [h (quot seconds 3600)
-          m (rem (quot seconds 60) 60)
-          s (rem seconds 60)]
-      ;; (str h "h" m "m" s "s")
-      (format "%02d:%02d:%02d" h m s))))
-
-(defn pace->str [seconds]
-  (when seconds
-    (let [m (quot seconds 60)
-          s (rem seconds 60)]
-      (str m "m" s "s"))))
-
-(defn pace->str [seconds]
-  (when seconds
-    (format "%2d:%02d" (quot seconds 60) (mod seconds 60))))
-
 (defn format-point [m]
   (-> m
-      (update :at at->str)
+      (update :at fmt/at->str)
       (update :distance #(some-> % long))
-      (update :pace pace->str)))
+      (update :pace fmt/pace->str)))
 
 (defn print-table [coll]
   (table/print-table
@@ -41,7 +24,7 @@
     (println (format "  Name:       %s" (:name activity)))
     (println (format "  Start:      %s" (:start_date_local activity))))
   (println (format "  Distance:   %.1f km" (/ (:distance summary) 1000.0)))
-  (println (format "  Duration:   %s" (at->str (:duration summary))))
+  (println (format "  Duration:   %s" (fmt/at->str (:duration summary))))
   (println (format "  Avg HR:     %s" (:heart_rate summary)))
   (println (format "  Avg Pace:   %s" (:pace summary)))
   (println (format "  Avg EF:     %s" (:ef_metric summary)))

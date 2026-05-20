@@ -3,6 +3,8 @@
 .repo/
 .cpcache/
 .claude/
+.clerk/
+.desc/
 .auth.edn
 .creds.edn
 .strava.db

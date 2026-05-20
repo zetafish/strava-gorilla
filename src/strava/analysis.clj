@@ -88,13 +88,13 @@
         all-ef (keep :ef_metric enriched)
         band-ef (keep :ef_metric in-band)]
     (when (seq all-hr)
-      {:avg-hr (int (/ (reduce + all-hr) (count all-hr)))
-       :avg-pace (when-let [spd (avg :speed enriched)]
-                   (when (pos? spd)
-                     (int (/ 3600 (* 3.6 spd)))))
-       :ef-band (when (seq band-ef)
-                  (/ (reduce + band-ef) (count band-ef)))
-       :band-pts (count band-ef)
+      {:heart_rate (int (/ (reduce + all-hr) (count all-hr)))
+       :pace (when-let [spd (avg :speed enriched)]
+               (when (pos? spd)
+                 (int (/ 3600 (* 3.6 spd)))))
+       :ef (when (seq band-ef)
+             (/ (reduce + band-ef) (count band-ef)))
+       :pts (count band-ef)
        :avg-ef (when (seq all-ef)
                  (/ (reduce + all-ef) (count all-ef)))})))
 

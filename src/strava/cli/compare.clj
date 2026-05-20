@@ -2,6 +2,7 @@
   (:require [babashka.cli :as cli]
             [strava.analysis :as analysis]
             [strava.cli.common :as common]
+            [strava.format :as fmt]
             [strava.load :as load]
             [strava.repo :as repo]
             [strava.table :as table]
@@ -16,6 +17,7 @@
             (:help (cli/parse-opts args {:spec {:help {:alias :h}}})))
     (println "Usage: bb compare [OPTIONS]")
     (println)
+    (println (class spec))
     (println (cli/format-opts {:spec spec}))
     true))
 
@@ -29,17 +31,18 @@
     (format "%2d:%02d" h m)))
 
 (defn format-row [r]
-  (-> r
-      (update :distance #(format "%.1fk" %))
-      (update :duration #(duration->str (or % 0)))
-      (update :avg-hr #(str (or % 0)))
-      (update :avg-pace #(or (pace->str %) "-"))
-      (update :ef #(if % (format "%.3f" (double %)) "-"))
-      (update :drift #(if % (format "%+.1f%%" %) "-"))
-      (update :split #(if % (format "%.2f" %) "-"))
-      (update :cadence #(str (or % 0)))
-      (update :trimp #(if % (format "%.0f" %) "-"))
-      (update :name #(let [n (or % "")] (subs n 0 (min (count n) 30))))))
+  r
+  #_(-> r
+        (update :distance #(format "%.1fk" %))
+        (update :duration #(duration->str (or % 0)))
+        (update :avg-hr #(str (or % 0)))
+        (update :avg-pace #(or (pace->str %) "-"))
+        (update :ef #(if % (format "%.3f" (double %)) "-"))
+        (update :drift #(if % (format "%+.1f%%" %) "-"))
+        (update :split #(if % (format "%.2f" %) "-"))
+        (update :cadence #(str (or % 0)))
+        (update :trimp #(if % (format "%.0f" %) "-"))
+        (update :name #(let [n (or % "")] (subs n 0 (min (count n) 30))))))
 
 (defn compute-row [activity hr-min hr-max athlete]
   (try
@@ -49,20 +52,31 @@
           trend (when (and hr-min hr-max) (analysis/trend-summary records hr-min hr-max))
           drift (analysis/cardiac-drift records)
           split (analysis/positive-split records)]
-      {:date (some-> (:start_date activity) (subs 0 10))
-       :name (:name activity)
-       :distance (/ (:distance activity) 1000.0)
-       :duration (:duration agg)
-       :avg-hr (:heart_rate agg)
-       :avg-pace (analysis/pace agg)
-       :ef (when (and (:average_speed activity) (:average_heartrate activity)
-                      (pos? (:average_heartrate activity)))
-             (* 60.0 (/ (:average_speed activity) (:average_heartrate activity))))
-       :drift drift
-       :split split
+      {:name (:name activity)
+       :date (:start_date activity)
+
        :cadence (:cadence agg)
-       :trimp (load/trimp activity athlete)
-       :band-pts (or (:band-pts trend) 0)})
+       :heart_rate (:heart_rate agg)
+       :pace (:pace agg)
+       :distance (:distance agg)
+       :duration (:duration agg)
+       :drift drift
+       :split split}
+
+      #_{:date (some-> (:start_date activity) (subs 0 10))
+         :name (:name activity)
+         :distance (/ (:distance activity) 1000.0)
+         :duration (:duration agg)
+         :heart_rate (:heart_rate agg)
+         :pace (analysis/pace agg)
+         :ef (when (and (:average_speed activity) (:average_heartrate activity)
+                        (pos? (:average_heartrate activity)))
+               (* 60.0 (/ (:average_speed activity) (:average_heartrate activity))))
+         :drift drift
+         :split split
+         :cadence (:cadence agg)
+         :trimp (load/trimp activity athlete)
+         :band-pts (or (:band-pts trend) 0)})
     (catch Exception _e nil)))
 
 (defn run [args]
@@ -90,10 +104,10 @@
           (let [rows (cond->> rows
                        show-pct (mapv #(update % :ef-pct (fn [v] (if v (format "%.0f%%" v) "-")))))
                 rows (mapv format-row rows)
-                header (cond-> ["Date" "Dist" "Time" "HR" "Pace" "EF" "Drift" "Split" "Cad" "TRIMP"]
+                header (cond-> ["Date" "Dist" "Duration" "HR" "Pace" "EF" "Drift" "Split" "Cad" "TRIMP"]
                          show-pct (conj "EF%")
                          true (conj "Name"))
-                keys (cond-> [:date :distance :duration :avg-hr :avg-pace :ef :drift :split :cadence :trimp]
+                keys (cond-> [:date :distance :duration :heart_rate :pace :ef :drift :split :cadence :trimp]
                        show-pct (conj :ef-pct)
                        true (conj :name))]
             (println (if (and hr-min hr-max)

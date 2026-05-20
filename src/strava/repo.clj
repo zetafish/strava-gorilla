@@ -55,6 +55,7 @@
       dist-max (filter #(<= (:distance %) (* 1000 dist-max)))
       tag (filter #(every? (fn [t] (contains? (tags/all-tags (:id %) %) (keyword t))) tag))
       no-tag (filter #(every? (fn [t] (not (contains? (tags/all-tags (:id %) %) (keyword t)))) no-tag))
+      true (filter #(= "Run" (:sport_type %)))
       true (sort-by :start_data)
       limit (take limit))))
 

@@ -51,8 +51,7 @@
                   (let [ref-points (geo/decode-polyline ref-poly)
                         ref-dist (:distance ref-activity)
                         dist-tol (:dist-tol opts)
-                        candidates (->> @repo/activities
-                                        (filter #(= "Run" (:sport_type %)))
+                        candidates (->> (repo/find-activities (dissoc opts :limit))
                                         (filter #(get-polyline %))
                                         (filter #(<= (abs (- 1.0 (/ (:distance % 1) (max 1 ref-dist)))) dist-tol))
                                         (filter #(let [d (some-> (:start_date %) (subs 0 10))]

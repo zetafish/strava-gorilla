@@ -3,29 +3,40 @@
         dev.weavejester/medley {:mvn/version "1.10.0"}}
  :tasks
  {:requires ([strava.cli :as cli])
-  eff {:doc "Compute efficiency factor"
-       :task (cli/eff *command-line-args*)}
-  scatter {:doc "Compute scatter plots"
-           :task (cli/scatter *command-line-args*)}
-  trend {:doc "Perform trend analysis"
-         :task (cli/trend *command-line-args*)}
-  histogram {:doc "Plot histogram of metric"
-             :task (cli/histogram *command-line-args*)}
-  line {:doc "Plot line chart of metric over time"
-        :task (cli/line *command-line-args*)}
-  heatmap {:doc "Plot heatmap of metric1 vs metric2"
-           :task (cli/heatmap *command-line-args*)}
-  sync {:doc "Sync data from strava"
-        :task (cli/sync *command-line-args*)}
-  tag {:doc "Manage activity tags"
-       :task (cli/tag *command-line-args*)}
-  search {:doc "Search for activities"
-          :task (cli/search *command-line-args*)}
-  details {:doc "Print activity details"
-           :task (cli/details *command-line-args*)}
-  fetch-desc {:doc "Fetch activity details"
-              :task (cli/fetch-desc *command-line-args*)}
-  refresh-token {:doc "Refresh Strava OAuth token"
-                 :task (cli/refresh-token *command-line-args*)}
+  stats {:doc "Multi-activity stats table"
+         :task (cli/stats *command-line-args*)}
+  stats:eff {:doc "Compute efficiency factor"
+             :task (cli/eff *command-line-args*)}
+  stats:trend {:doc "Perform trend analysis"
+               :task (cli/trend *command-line-args*)}
+  stats:similar {:doc "Find runs with similar routes"
+                 :task (cli/similar *command-line-args*)}
+  stats:compare {:doc "Compare batch of similar activities"
+                 :task (cli/compare-runs *command-line-args*)}
+
+  plot:scatter {:doc "Compute scatter plots"
+                :task (cli/scatter *command-line-args*)}
+  plot:histogram {:doc "Plot histogram of metric"
+                  :task (cli/histogram *command-line-args*)}
+  plot:line {:doc "Plot line chart of metric over time"
+             :task (cli/line *command-line-args*)}
+  plot:heatmap {:doc "Plot heatmap of metric1 vs metric2"
+                :task (cli/heatmap *command-line-args*)}
+
+  crud:load {:doc "Training load (ATL/CTL/TSB)"
+             :task (cli/load *command-line-args*)}
+  crud:sync {:doc "Sync data from strava"
+             :task (cli/sync *command-line-args*)}
+  crud:tag {:doc "Manage activity tags"
+            :task (cli/tag *command-line-args*)}
+  crud:details {:doc "Print activity details"
+                :task (cli/details *command-line-args*)}
+  crud:fetch-desc {:doc "Fetch activity details"
+                   :task (cli/fetch-desc *command-line-args*)}
+  crud:search {:doc "Search for activities"
+               :task (cli/search *command-line-args*)}
+
+  auth:refresh-token {:doc "Refresh Strava OAuth token"
+                      :task (cli/refresh-token *command-line-args*)}
   clerk {:doc "Start Clerk notebook"
          :task (shell "clj -X:clerk")}}}
