@@ -7,12 +7,12 @@
          :task (cli/stats *command-line-args*)}
   stats:eff {:doc "Compute efficiency factor"
              :task (cli/eff *command-line-args*)}
-  stats:trend {:doc "Perform trend analysis"
-               :task (cli/trend *command-line-args*)}
-  stats:similar {:doc "Find runs with similar routes"
-                 :task (cli/similar *command-line-args*)}
-  stats:compare {:doc "Compare batch of similar activities"
-                 :task (cli/compare-runs *command-line-args*)}
+  ;; stats:trend {:doc "Perform trend analysis"
+  ;;              :task (cli/trend *command-line-args*)}
+  ;; stats:similar {:doc "Find runs with similar routes"
+  ;;                :task (cli/similar *command-line-args*)}
+  ;; stats:compare {:doc "Compare batch of similar activities"
+  ;;                :task (cli/compare-runs *command-line-args*)}
 
   plot:scatter {:doc "Compute scatter plots"
                 :task (cli/scatter *command-line-args*)}
