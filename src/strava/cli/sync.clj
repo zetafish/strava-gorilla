@@ -2,7 +2,6 @@
   (:require [babashka.cli :as cli]
             [babashka.fs :as fs]
             [cheshire.core :as json]
-            [clojure.edn :as edn]
             [strava.api :as api]
             [strava.repo :as repo]))
 
@@ -15,11 +14,9 @@
     (println (cli/format-opts {:spec spec}))
     true))
 
-(def activities-dir ".activities")
-
 (defn save-activities [year month coll]
-  (fs/create-dirs activities-dir)
-  (let [f (str activities-dir "/" (format "%4d-%02d.json" year month))]
+  (fs/create-dirs repo/activities-dir)
+  (let [f (str repo/activities-dir "/" (format "%4d-%02d.json" year month))]
     (spit f (json/generate-string coll {:pretty true}))))
 
 (defn sync-month [year month]
@@ -32,7 +29,7 @@
     (save-activities year month coll)
     (doseq [x coll]
       (println (:start_date x) (:id x) (:name x))
-      (repo/get-fit-file-by-activity x))))
+      (repo/ensure-original-file (:id x)))))
 
 (defn sync-year [year]
   (doseq [month (range 1 13)]

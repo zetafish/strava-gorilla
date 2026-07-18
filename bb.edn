@@ -9,13 +9,41 @@
   server {:doc "Wake up the Gorilla"
           :task (clojure "-M" "-m" "strava-gorilla.core")}
 
-  ;; stats {:doc "Multi-activity stats table"
-  ;;        :task (cli/stats *command-line-args*)}
-  ;; stats:monthly {:doc "Monthly stats summary"
-  ;;                :task (cli/monthly *command-line-args*)}
-  ;; stats:weekly {:doc "Weekly stats summary"
-  ;;               :task (cli/weekly *command-line-args*)}
-  ;; stats:eff {:doc "Compute efficiency factor"
+  search {:doc "Search activities"
+          :requires [strava.cli.search]
+          :task (strava.cli.search/run *command-line-args*)}
+
+  monthly {:requires [strava.cli.monthly]
+           :task (strava.cli.monthly/run *command-line-args*)}
+
+  weekly  {:requires [strava.cli.monthly]
+           :task (strava.cli.monthly/run-weekly *command-line-args*)}
+
+  calendar {:requires [strava.cli.calendar]
+            :task (strava.cli.calendar/run *command-line-args*)}
+
+  eff {:requires [strava.cli.eff]
+       :task (strava.cli.eff/run *command-line-args*)}
+
+  heatmap {:requires [strava.cli.heatmap]
+           :task (strava.cli.heatmap/run *command-line-args*)}
+
+  line {:requires [strava.cli.line]
+        :task (strava.cli.line/run *command-line-args*)}
+
+  v:load {:requires [strava.cli.load]
+          :task (strava.cli.load/run *command-line-args*)}
+
+  scatter {:requires [strava.cli.scatter]
+           :task (strava.cli.scatter/run *command-line-args*)}
+
+  stats {:requires [strava.cli.stats]
+         :task (strava.cli.stats/run *command-line-args*)}
+
+  sync {:requires [strava.cli.sync]
+        :task (strava.cli.sync/run *command-line-args*)}
+
+;; stats:eff {:doc "Compute efficiency factor"
   ;;            :task (cli/eff *command-line-args*)}
   ;; stats:trend {:doc "Perform trend analysis"
   ;;              :task (cli/trend *command-line-args*)}
@@ -49,7 +77,7 @@
   ;; coaching:cal {:doc "Training calendar"
   ;;               :task (cli/calendar *command-line-args*)}
 
-  auth:refresh-token {:doc "Refresh Strava OAuth token"
-                      :task (cli/refresh-token *command-line-args*)}
+  refresh-token {:doc "Refresh Strava OAuth token"
+                 :task (cli/refresh-token *command-line-args*)}
   clerk {:doc "Start Clerk notebook"
          :task (shell "clj -X:clerk")}}}

@@ -93,19 +93,6 @@
           (keyword rhs) #(op lhs (get-prop % rhs))
           :else (throw (ex-info "invalid clause" {:clause where})))))))
 
-;; (build-pred [:and [:= :kmph 10]])
-;; (build-pred [:and [:= :date "2026-05-01"]])
-
-;; ((build-pred [:>= :d "1"]) {:d "2"})
-
-;; (compare "1" "2")
-
-;; (defn find-x [where]
-;;   (filter (build-pred where) @activities))
-
-;; (defn find-activities [selector]
-;;   (filter (build-pred selector) @activities))
-
 (defn find-by-pattern [pattern]
   (find-activities {:pattern pattern}))
 

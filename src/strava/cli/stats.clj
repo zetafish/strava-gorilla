@@ -4,8 +4,7 @@
             [strava.cli.common :as common]
             [strava.geo :as geo]
             [strava.repo :as repo]
-            [strava.table :as table]
-            [strava.track :as track]))
+            [strava.table :as table]))
 
 (def spec (assoc common/selector-spec
                  :route-sim {:coerce :long :desc "Activity ID for route similarity (adds Score column)"}
@@ -23,8 +22,8 @@
 
 (defn compute-row [activity]
   (try
-    (let [f (str (repo/get-fit-file-by-activity activity))
-          records (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail)
+    (let [f (repo/fit-file activity)
+          records (common/parse-file f)
           agg (analysis/agg records)
           drift (analysis/cardiac-drift records)
           split (analysis/positive-split records)]
@@ -44,7 +43,7 @@
     (catch Exception _e nil)))
 
 (defn route-filter [activities ref-id threshold]
-  (let [ref (repo/find-activity ref-id)
+  (let [ref (repo/get-activity ref-id)
         ref-poly (some-> ref :map :summary_polyline)]
     (if-not ref-poly
       (do (println "Reference activity has no route data:" ref-id)
