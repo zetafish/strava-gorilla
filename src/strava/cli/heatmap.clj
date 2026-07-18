@@ -88,8 +88,9 @@
         (if (and metric1-config metric2-config)
           (let [files (->> (mapcat #(repo/find-by-pattern %) (:pattern opts))
                            distinct
-                           (sort-by str #(compare %2 %1))
-                           (take 1))]
+                           (sort-by :start_date #(compare %2 %1))
+                           (take 1)
+                           (map repo/fit-file))]
             (if (seq files)
               (let [f (first files)
                     records (common/parse-file f)

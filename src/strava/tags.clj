@@ -45,7 +45,7 @@
     (save-tags updated)))
 
 (defn load-all-activities []
-  (->> (fs/list-dir ".activities" "*.json")
+  (->> (fs/list-dir ".data/activities" "*.json")
        (mapcat #(json/parse-string (slurp (str %)) true))))
 
 (defn find-by-tag [tag]

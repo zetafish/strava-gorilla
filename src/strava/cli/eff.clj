@@ -1,14 +1,12 @@
 (ns strava.cli.eff
   (:require [babashka.cli :as cli]
             [strava.analysis :as analysis]
+            [strava.cli.common :as common]
             [strava.format :as fmt]
             [strava.repo :as repo]
-            [strava.table :as table]
-            [strava.track :as track]))
+            [strava.table :as table]))
 
-(defn format-point [m]
-  (-> m
-      (update :at fmt/at->str)))
+(defn format-point [m] m)
 
 (defn print-table [coll]
   (table/print-table
@@ -50,19 +48,21 @@
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})]
         (if-let [activity (cond
-                            (:id opts) (repo/find-activity (:id opts))
-                            (:pattern opts) (first (apply repo/find-by-pattern (:pattern opts))))]
-          (let [f (str repo/repo-dir "/" (repo/fit-file-name activity))
-                records (cond->> (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail)
+                            (:id opts) (repo/get-activity (:id opts))
+                            (:pattern opts) (->> (mapcat repo/find-by-pattern (:pattern opts))
+                                                 (sort-by :start_date #(compare %2 %1))
+                                                 first))]
+          (let [f (repo/fit-file activity)
+                records (cond->> (common/parse-file f)
                           (:from opts) (drop-while #(< (:at %) (:from opts)))
                           (:to opts) (take-while #(< (:at %) (:to opts))))
                 date (subs (:start_date_local activity) 0 10)
-                coll (->> (track/bucketize (:interval opts) records)
+                coll (->> (analysis/bucketize (:interval opts) records)
                           (map #(assoc % :date date))
                           (map format-point))
-                summary (-> (track/agg records) format-point)
+                summary (-> (analysis/agg records) format-point)
                 q (quot (count records) 4)
-                quarters (mapv #(track/agg %)
+                quarters (mapv analysis/agg
                                [(take q records)
                                 (->> records (drop q) (take q))
                                 (->> records (drop (* 2 q)) (take q))
