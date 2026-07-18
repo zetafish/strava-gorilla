@@ -28,7 +28,8 @@
           agg (analysis/agg records)
           drift (analysis/cardiac-drift records)
           split (analysis/positive-split records)]
-      {:date (:start_date activity)
+      {:id (:id activity)
+       :date (:start_date activity)
        :name (:name activity)
        :distance (:distance agg)
        :duration (:duration agg)
@@ -69,7 +70,7 @@
                          (route-filter activities (:route-sim opts) (:threshold opts))
                          activities)
             rows (->> (keep compute-row activities)
-                      (sort-by :date))
+                      (sort-by :date_started))
             show-pct (:baseline-window opts)
             rows (if show-pct
                    (mapv (fn [r]
@@ -84,11 +85,11 @@
                    rows)
             show-score (:route-sim opts)]
         (if (seq rows)
-          (let [header (cond-> ["Date" "Dist" "Dur" "HR" "Pace" "EF" "Drift" "Split" "Cad"]
+          (let [header (cond-> ["ID" "Date" "Dist" "Dur" "HR" "Pace" "EF" "Drift" "Split" "Cad"]
                          show-score (conj "Score")
                          show-pct (conj "EF%")
                          true (conj "Name"))
-                keys (cond-> [:date :distance :duration :heart_rate :pace :ef :drift :split :cadence]
+                keys (cond-> [:id :date :distance :duration :heart_rate :pace :ef :drift :split :cadence]
                        show-score (conj :score)
                        show-pct (conj :ef-pct)
                        true (conj :name))]

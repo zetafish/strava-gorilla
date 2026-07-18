@@ -1,12 +1,22 @@
 {:paths ["src"]
  :deps {org.babashka/http-client {:mvn/version "0.4.22"}
+        com.cnuernber/charred {:mvn/version "1.038"}
         dev.weavejester/medley {:mvn/version "1.10.0"}}
+ :pods {org.babashka/postgresql {:version "0.1.6"}}
  :tasks
  {:requires ([strava.cli :as cli])
-  stats {:doc "Multi-activity stats table"
-         :task (cli/stats *command-line-args*)}
-  stats:eff {:doc "Compute efficiency factor"
-             :task (cli/eff *command-line-args*)}
+
+  server {:doc "Wake up the Gorilla"
+          :task (clojure "-M" "-m" "strava-gorilla.core")}
+
+  ;; stats {:doc "Multi-activity stats table"
+  ;;        :task (cli/stats *command-line-args*)}
+  ;; stats:monthly {:doc "Monthly stats summary"
+  ;;                :task (cli/monthly *command-line-args*)}
+  ;; stats:weekly {:doc "Weekly stats summary"
+  ;;               :task (cli/weekly *command-line-args*)}
+  ;; stats:eff {:doc "Compute efficiency factor"
+  ;;            :task (cli/eff *command-line-args*)}
   ;; stats:trend {:doc "Perform trend analysis"
   ;;              :task (cli/trend *command-line-args*)}
   ;; stats:similar {:doc "Find runs with similar routes"
@@ -14,27 +24,30 @@
   ;; stats:compare {:doc "Compare batch of similar activities"
   ;;                :task (cli/compare-runs *command-line-args*)}
 
-  plot:scatter {:doc "Compute scatter plots"
-                :task (cli/scatter *command-line-args*)}
-  plot:histogram {:doc "Plot histogram of metric"
-                  :task (cli/histogram *command-line-args*)}
-  plot:line {:doc "Plot line chart of metric over time"
-             :task (cli/line *command-line-args*)}
-  plot:heatmap {:doc "Plot heatmap of metric1 vs metric2"
-                :task (cli/heatmap *command-line-args*)}
+  ;; plot:scatter {:doc "Compute scatter plots"
+  ;;               :task (cli/scatter *command-line-args*)}
+  ;; plot:histogram {:doc "Plot histogram of metric"
+  ;;                 :task (cli/histogram *command-line-args*)}
+  ;; plot:line {:doc "Plot line chart of metric over time"
+  ;;            :task (cli/line *command-line-args*)}
+  ;; plot:heatmap {:doc "Plot heatmap of metric1 vs metric2"
+  ;;               :task (cli/heatmap *command-line-args*)}
 
-  crud:load {:doc "Training load (ATL/CTL/TSB)"
-             :task (cli/load *command-line-args*)}
-  crud:sync {:doc "Sync data from strava"
-             :task (cli/sync *command-line-args*)}
-  crud:tag {:doc "Manage activity tags"
-            :task (cli/tag *command-line-args*)}
-  crud:details {:doc "Print activity details"
-                :task (cli/details *command-line-args*)}
-  crud:fetch-desc {:doc "Fetch activity details"
-                   :task (cli/fetch-desc *command-line-args*)}
-  crud:search {:doc "Search for activities"
-               :task (cli/search *command-line-args*)}
+  ;; crud:load {:doc "Training load (ATL/CTL/TSB)"
+  ;;            :task (cli/load *command-line-args*)}
+  ;; crud:sync {:doc "Sync data from strava"
+  ;;            :task (cli/sync *command-line-args*)}
+  ;; crud:tag {:doc "Manage activity tags"
+  ;;           :task (cli/tag *command-line-args*)}
+  ;; crud:details {:doc "Print activity details"
+  ;;               :task (cli/details *command-line-args*)}
+  ;; crud:fetch-desc {:doc "Fetch activity details"
+  ;;                  :task (cli/fetch-desc *command-line-args*)}
+  ;; crud:search {:doc "Search for activities"
+  ;;              :task (cli/search *command-line-args*)}
+
+  ;; coaching:cal {:doc "Training calendar"
+  ;;               :task (cli/calendar *command-line-args*)}
 
   auth:refresh-token {:doc "Refresh Strava OAuth token"
                       :task (cli/refresh-token *command-line-args*)}

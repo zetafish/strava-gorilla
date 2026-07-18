@@ -1,12 +1,29 @@
-{:deps {com.garmin/fit {:mvn/version "21.176.0"}
+{:paths ["src-java"]
+ :deps {com.garmin/fit {:mvn/version "21.176.0"}
         org.clojure/data.xml {:mvn/version "0.0.8"}
         org.clojure/data.csv {:mvn/version "1.1.1"}
+        com.cnuernber/charred {:mvn/version "1.038"}
         dev.weavejester/medley {:mvn/version "1.10.0"}
         org.jsoup/jsoup {:mvn/version "1.22.2"}
         babashka/fs {:mvn/version "0.5.33"}
+        org.babashka/http-client {:mvn/version "0.4.22"}
         org.babashka/cli {:mvn/version "0.8.67"}
-        cheshire/cheshire {:mvn/version "5.13.0"}}
- :aliases {:clerk {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.18.1158"}}
+        babashka/process {:mvn/version "0.6.25"}
+        org.replikativ/stratum {:mvn/version "0.3.72"}
+        cheshire/cheshire {:mvn/version "5.13.0"}
+        ring/ring-core {:mvn/version "1.8.2"}
+        ring/ring-jetty-adapter {:mvn/version "1.8.2"}}
+ :aliases {:run {:main-opts ["-m" "strava-gorilla.core"]
+                 :jvm-opts ["--add-modules" "jdk.incubator.vector"
+                            "--add-opens" "java.base/jdk.internal.misc=ALL-UNNAMED"]}
+           :repl {:extra-deps {nrepl/nrepl {:mvn/version "1.5.2"}
+                               cider/cider-nrepl {:mvn/version "0.58.0"}}
+                  :main-opts ["-m" "nrepl.cmdline" "--port" "7888"
+                              "--middleware" "[cider.nrepl/cider-middleware]"
+                              "--interactive"]
+                  :jvm-opts ["--add-modules" "jdk.incubator.vector"
+                             "--add-opens" "java.base/jdk.internal.misc=ALL-UNNAMED"]}
+           :clerk {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.18.1158"}}
                    :exec-fn nextjournal.clerk/serve!
                    :exec-args {:watch-paths ["src"]
                                :browse true}}}}

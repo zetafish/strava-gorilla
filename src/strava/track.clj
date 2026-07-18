@@ -1,67 +1,103 @@
 (ns strava.track
-  (:require [babashka.fs :as fs]
-            [cheshire.core :as json]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [strava.analysis :as analysis]
-            [strava.parser.fit :as fit]
-            [strava.parser.gpx :as gpx]
-            [strava.parser.tcx :as tcx]))
+  (:require [strava.repo :as repo]
+            [strava.table :as table]))
 
-(def cache-dir ".cache")
+(defn trim-head [track]
+  (drop-while (comp zero? :speed) track))
 
-(defn- detect-format [path]
-  (let [buf (byte-array 500)]
-    (with-open [in (io/input-stream path)]
-      (.read in buf))
-    (if (= ".FIT" (String. buf 8 4))
-      :fit
-      (let [head (String. buf)]
-        (cond
-          (str/includes? head "TrainingCenterDatabase") :tcx
-          (str/includes? head "<gpx") :gpx)))))
-
-(defn remove-head [coll]
-  (->> (drop-while #(zero? (:speed % 0)) coll)
-       vec))
-
-(defn remove-tail [coll]
-  (->> (reverse coll)
-       (drop-while #(zero? (:speed % 0)))
+(defn trim-tail [track]
+  (->> track
        reverse
-       vec))
+       (drop-while (comp zero? :speed))
+       reverse))
 
-(defn- file->records [path]
-  (case (detect-format path)
-    :fit (fit/records path)
-    :gpx (gpx/records path)
-    :tcx (tcx/records path)))
+(defn remove-stationary [track]
+  (remove (comp zero? :speed) track))
 
-(defn parse-file [fit-file]
-  (fs/create-dirs cache-dir)
-  (let [id (second (re-matches #".*?(\d+)\.fit" fit-file))
-        f (fs/file cache-dir (str id ".json"))]
-    (if (fs/exists? f)
-      (json/parse-string (slurp f) true)
-      (let [coll (file->records fit-file)]
-        (spit f (json/generate-string coll {:pretty true}))
-        coll))))
+(defn epoch->instant [n]
+  (java.time.Instant/ofEpochSecond n))
 
-(defn detect-record-duration [records]
-  (let [timestamps (map :timestamp (take 20 records))
-        deltas (map - (rest timestamps) timestamps)]
-    (long (/ (reduce + deltas) (count deltas)))))
+(defn rebase-at [track]
+  (let [base (:at (first track))]
+    (map #(update % :at - base) track)))
 
-(defn add-duration [records]
-  (let [dur (detect-record-duration records)]
-    (mapv #(assoc % :duration dur) records)))
+(defn double-cadence [track]
+  (map #(update % :cadence (fn [c]
+                             (when c
+                               (* 2 c))))
+       track))
 
-;; Re-export analysis functions for backward compatibility
-(def avg analysis/avg)
-(def efficiency analysis/efficiency)
-(def pace analysis/pace)
-(def kmph analysis/kmph)
-(def enrich analysis/enrich)
-(def bucket-fn analysis/bucket-fn)
-(def agg analysis/agg)
-(def bucketize analysis/bucketize)
+(defn avg [k coll]
+  (let [vals (keep k coll)]
+    (when (seq vals)
+      (double (/ (reduce + vals) (count vals))))))
+
+(defn pace [{:keys [speed]}]
+  (when (and speed (pos? speed))
+    (int (/ 3600 (* 3.6 speed)))))
+
+(defn kmph [{:keys [speed]}]
+  (when speed
+    (* 3.6 speed)))
+
+(defn efficiency [{:keys [speed heart_rate]}]
+  (when (and speed heart_rate (pos? heart_rate))
+    (* 60 (/ speed heart_rate))))
+
+(defn enrich [m]
+  (-> m
+      (assoc :pace (pace m))
+      (assoc :kmph (kmph m))
+      (assoc :ef (efficiency m))
+      (assoc :date (subs (str (java.time.Instant/ofEpochSecond (:timestamp m)))
+                         0 10))))
+
+(defn agg [coll]
+  (case (count coll)
+    0 nil
+    1 (enrich (first coll))
+    (let [duration (- (:at (last coll)) (:at (first coll)))
+          dist-covered (- (:distance (last coll)) (:distance (first coll)))]
+      (enrich {:pts (count coll)
+               :at (:at (first coll))
+               :timestamp (:timestamp (first coll))
+               :duration duration
+               :distance (:distance (last coll))
+               :step_length (some-> (avg :step_length coll) int)
+               :heart_rate (some-> (avg :heart_rate coll) int)
+               :cadence (some-> (avg :cadence coll) int (* 2))
+               :speed (/ dist-covered duration)}))))
+
+(defn split-evenly [n coll]
+  (let [v (vec coll)
+        c (count v)
+        q (quot c n)
+        r (rem c n)
+        sizes (map + (repeat n q) (concat (repeat r 1) (repeat 0)))
+        edges (reductions + 0 sizes)]
+    (map (fn [start end]
+           (if (< end (count v))
+             (subvec v start (inc end))
+             (subvec v start end)))
+         edges
+         (rest edges))))
+
+(defn- split-by-key [key window track]
+  (let [segments (partition-by #(quot (get % key) window) track)]
+    (->> (map (fn [s1 s2]
+                (concat s1 [(first s2)]))
+              segments
+              (concat (rest segments) [nil]))
+         (map #(keep identity %))
+         (remove #(= 1 (count %))))))
+
+(defmulti splits :strategy)
+
+(defmethod splits :duration [{:keys [duration]} track]
+  (map agg (split-by-key :at duration track)))
+
+(defmethod splits :distance [{:keys [distance]} track]
+  (map agg (split-by-key :distance distance track)))
+
+(defmethod splits :evenly [{:keys [evenly]} track]
+  (map agg (split-evenly evenly track)))

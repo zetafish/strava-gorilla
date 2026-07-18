@@ -4,13 +4,13 @@
             [clojure.pprint]
             [clojure.string :as str]
             [strava.api :as api]
+            [strava.parser.core :as parser]
             [strava.tags :as tags]))
 
-(def repo-dir ".repo")
-
-(def desc-dir ".desc")
-
-(def activities-dir ".activities")
+(def originals-dir ".data/originals")
+(def tracks-dir ".data/tracks")
+(def activities-dir ".data/activities")
+(def descriptions-dir ".data/descriptions")
 
 (defn load-activities []
   (->> (fs/list-dir activities-dir)
@@ -20,24 +20,31 @@
 
 (def activities (atom (load-activities)))
 
-(defn fit-file-name [activity]
-  (str (:id activity) ".fit"))
+(defn- original-file [id]
+  (fs/file originals-dir (str id ".fit")))
 
-(defn get-fit-file-by-activity [activity]
-  (let [f (fs/file repo-dir (fit-file-name activity))]
+(defn- track-file [id]
+  (fs/file tracks-dir (str id ".json")))
+
+(defn- description-file [id]
+  (fs/file descriptions-dir (str id ".txt")))
+
+(defn- activities-file [year month]
+  (fs/file activities-dir (format "%4d-%02d.json" year month)))
+
+(defn ensure-original-file [id]
+  (let [f (original-file id)]
     (when-not (fs/exists? f)
-      (api/download-original (:id activity) f))
+      (api/download-original id f)) 3
     f))
 
-(defn get-description-by-activity-id [id]
-  (let [desc (api/fetch-description id)
-        f (fs/file desc-dir (str id ".txt"))]
-    (fs/create-dirs desc-dir)
-    (spit f desc)
-    desc))
-
-(defn extract-id [fit-path]
-  (some-> (re-matches #".*/(\d+)\.fit" (str fit-path)) second parse-long))
+(defn ensure-track-file [id]
+  (let [f (track-file id)]
+    (when-not (fs/exists? f)
+      (spit (str f)
+            (json/encode (parser/parse-original (ensure-original-file id))
+                         {:pretty true})))
+    f))
 
 (defn find-activities [{:keys [limit
                                id from to pattern hr-min hr-max
@@ -59,8 +66,66 @@
       true (sort-by :start_data)
       limit (take limit))))
 
-(defn find-activity [id]
+(defn round [v]
+  (int (Math/round v)))
+
+(defn build-pred [where]
+  (letfn [(get-prop [m k]
+            (case k
+              :date (some-> m :start_date (subs 0 10))
+              :heart_rate (some-> m :average_heartrate round)
+              :distance (some-> m :distance (/ 1000) round)
+              (get m k)))
+          (build-op [op]
+            (case op
+              :>= #(>= (compare %1 %2) 0)
+              :<= #(<= (compare %1 %2) 0)
+              :> #(> (compare %1 %2) 0)
+              :< #(< (compare %1 %2) 0)
+              := #(= %1 %2)))]
+    (case (first where)
+      :and (apply every-pred (map build-pred (rest where)))
+      :or (apply some-fn (map build-pred (rest where)))
+      (let [[op lhs rhs] where
+            op (build-op op)]
+        (cond
+          (keyword lhs) #(op (get-prop % lhs) rhs)
+          (keyword rhs) #(op lhs (get-prop % rhs))
+          :else (throw (ex-info "invalid clause" {:clause where})))))))
+
+;; (build-pred [:and [:= :kmph 10]])
+;; (build-pred [:and [:= :date "2026-05-01"]])
+
+;; ((build-pred [:>= :d "1"]) {:d "2"})
+
+;; (compare "1" "2")
+
+;; (defn find-x [where]
+;;   (filter (build-pred where) @activities))
+
+;; (defn find-activities [selector]
+;;   (filter (build-pred selector) @activities))
+
+(defn get-activity [id]
   (first (find-activities {:id id})))
 
-(defn find-by-pattern [pat]
-  (find-activities {:pattern pat}))
+(defn get-track [id]
+  (ensure-track-file id)
+  (json/decode (slurp (track-file id)) true))
+
+(defn get-description [id]
+  (let [f (description-file id)]
+    (when-not (fs/exists? f)
+      (spit f (api/fetch-description id)))
+    (slurp f)))
+
+(defn sync-month [year month]
+  (let [f (activities-file year month)
+        after (format "%4d-%02d-01T00:00:00Z" year month)
+        month* (inc (rem month 12))
+        year* (+ year (if (= 12 month) 1 0))
+        before (format "%4d-%02d-01T00:00:00Z" year* month*)
+        coll (api/list-activities :per-page 200 :after after :before before)]
+    (spit f (json/generate-string coll {:pretty true}))
+    (reset! activities (load-activities))
+    nil))
