@@ -1,6 +1,6 @@
 (ns strava.cli
-  (:require ; [babashka.cli :as cli]
-   [strava.api :as api]))
+  (:require [strava.api :as api]
+            [strava.cli.search :as search]))
 
 ;; (defn eff [args]
 ;;   (eff/run args))

@@ -1,6 +1,4 @@
-(ns strava.track
-  (:require [strava.repo :as repo]
-            [strava.table :as table]))
+(ns strava.track)
 
 (defn trim-head [track]
   (drop-while (comp zero? :speed) track))

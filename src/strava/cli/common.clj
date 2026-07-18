@@ -1,5 +1,6 @@
 (ns strava.cli.common
   (:require [strava.analysis :as analysis]
+            [strava.parser.core :as parser]
             [strava.repo :as repo]
             [strava.track :as track]))
 
@@ -39,13 +40,17 @@
         (double clip-val)))))
 
 (defn activity-label [f]
-  (if-let [activity (some-> (repo/extract-id f) repo/find-activity)]
-    (let [date (some-> (:start_date_local activity) (subs 0 10))]
-      (format "%s %s %.0fkm" date (:name activity) (/ (:distance activity) 1000.0)))
-    (str f)))
+  (str f)
+  #_(if-let [activity (some-> (repo/extract-id f) repo/find-activity)]
+      (let [date (some-> (:start_date_local activity) (subs 0 10))]
+        (format "%s %s %.0fkm" date (:name activity) (/ (:distance activity) 1000.0)))
+      (str f)))
 
 (defn parse-file [f]
-  (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail))
+  (-> f
+      parser/parse-original
+      track/trim-head
+      track/trim-tail))
 
 (defn prepare-line-data
   [f opts metric-config]

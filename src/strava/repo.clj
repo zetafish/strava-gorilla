@@ -106,6 +106,10 @@
 ;; (defn find-activities [selector]
 ;;   (filter (build-pred selector) @activities))
 
+(defn find-by-pattern [pattern]
+  (->> (find-activities {:pattern pattern})
+       (map (comp str ensure-original-file :id))))
+
 (defn get-activity [id]
   (first (find-activities {:id id})))
 
