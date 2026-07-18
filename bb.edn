@@ -9,38 +9,48 @@
   server {:doc "Wake up the Gorilla"
           :task (clojure "-M" "-m" "strava-gorilla.core")}
 
-  search {:doc "Search activities"
+  search {:doc "Search activities by name, tag, date, distance, or HR"
           :requires [strava.cli.search]
           :task (strava.cli.search/run *command-line-args*)}
 
-  monthly {:requires [strava.cli.monthly]
+  monthly {:doc "Monthly totals: distance, time, avg HR/speed/cadence"
+           :requires [strava.cli.monthly]
            :task (strava.cli.monthly/run *command-line-args*)}
 
-  weekly  {:requires [strava.cli.monthly]
+  weekly  {:doc "Weekly totals: distance, time, avg HR/speed/cadence"
+           :requires [strava.cli.monthly]
            :task (strava.cli.monthly/run-weekly *command-line-args*)}
 
-  calendar {:requires [strava.cli.calendar]
+  calendar {:doc "ASCII calendar view of runs for a month/year"
+            :requires [strava.cli.calendar]
             :task (strava.cli.calendar/run *command-line-args*)}
 
-  eff {:requires [strava.cli.eff]
+  eff {:doc "Efficiency factor (speed/HR) per quarter of an activity"
+       :requires [strava.cli.eff]
        :task (strava.cli.eff/run *command-line-args*)}
 
-  heatmap {:requires [strava.cli.heatmap]
+  heatmap {:doc "Render HR-vs-pace heatmap from a single activity's FIT"
+           :requires [strava.cli.heatmap]
            :task (strava.cli.heatmap/run *command-line-args*)}
 
-  line {:requires [strava.cli.line]
+  line {:doc "Line chart of a metric over time within an activity"
+        :requires [strava.cli.line]
         :task (strava.cli.line/run *command-line-args*)}
 
-  v:load {:requires [strava.cli.load]
+  v:load {:doc "Training load: ATL / CTL / TSB rolling averages"
+          :requires [strava.cli.load]
           :task (strava.cli.load/run *command-line-args*)}
 
-  scatter {:requires [strava.cli.scatter]
+  scatter {:doc "Scatter plot of two metrics across activities"
+           :requires [strava.cli.scatter]
            :task (strava.cli.scatter/run *command-line-args*)}
 
-  stats {:requires [strava.cli.stats]
+  stats {:doc "Summary stats (distance, pace, HR, EF) for one activity"
+         :requires [strava.cli.stats]
          :task (strava.cli.stats/run *command-line-args*)}
 
-  sync {:requires [strava.cli.sync]
+  sync {:doc "Scrape Strava calendar + download FITs for -y YEAR [-m MONTH]"
+        :requires [strava.cli.sync]
         :task (strava.cli.sync/run *command-line-args*)}
 
 ;; stats:eff {:doc "Compute efficiency factor"

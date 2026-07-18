@@ -1,8 +1,5 @@
 (ns strava.cli.sync
   (:require [babashka.cli :as cli]
-            [babashka.fs :as fs]
-            [cheshire.core :as json]
-            [strava.api :as api]
             [strava.repo :as repo]))
 
 (def spec {:year {:alias :y :require true :coerce :int}
@@ -14,30 +11,9 @@
     (println (cli/format-opts {:spec spec}))
     true))
 
-(defn save-activities [year month coll]
-  (fs/create-dirs repo/activities-dir)
-  (let [f (str repo/activities-dir "/" (format "%4d-%02d.json" year month))]
-    (spit f (json/generate-string coll {:pretty true}))))
-
-(defn sync-month [year month]
-  (println :sync-month year month)
-  (let [after (format "%4d-%02d-01T00:00:00Z" year month)
-        month* (inc (rem month 12))
-        year* (+ year (if (= 12 month) 1 0))
-        before (format "%4d-%02d-01T00:00:00Z" year* month*)
-        coll (api/list-activities :per-page 200 :after after :before before)]
-    (save-activities year month coll)
-    (doseq [x coll]
-      (println (:start_date x) (:id x) (:name x))
-      (repo/ensure-original-file (:id x)))))
-
-(defn sync-year [year]
-  (doseq [month (range 1 13)]
-    (sync-month year month)))
-
 (defn run [args]
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})]
-        (cond
-          (not (:month opts)) (sync-year (:year opts))
-          :else (sync-month (:year opts) (:month opts))))))
+        (if (:month opts)
+          (repo/sync-month (:year opts) (:month opts))
+          (repo/sync-year (:year opts))))))

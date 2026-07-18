@@ -3,14 +3,15 @@
             [cheshire.core :as json]
             [clojure.pprint]
             [clojure.string :as str]
-            [strava.api :as api]
             [strava.parser.core :as parser]
+            [strava.scrape.calendar :as scrape-cal]
+            [strava.scrape.fit :as scrape-fit]
+            [strava.scrape.summary :as scrape-sum]
             [strava.tags :as tags]))
 
 (def originals-dir ".data/originals")
 (def tracks-dir ".data/tracks")
 (def activities-dir ".data/activities")
-(def descriptions-dir ".data/descriptions")
 
 (defn load-activities []
   (->> (fs/list-dir activities-dir)
@@ -26,16 +27,13 @@
 (defn- track-file [id]
   (fs/file tracks-dir (str id ".json")))
 
-(defn- description-file [id]
-  (fs/file descriptions-dir (str id ".txt")))
-
 (defn- activities-file [year month]
   (fs/file activities-dir (format "%4d-%02d.json" year month)))
 
 (defn ensure-original-file [id]
   (let [f (original-file id)]
     (when-not (fs/exists? f)
-      (api/download-original id f)) 3
+      (scrape-fit/download id f))
     f))
 
 (defn ensure-track-file [id]
@@ -107,18 +105,40 @@
   (json/decode (slurp (track-file id)) true))
 
 (defn get-description [id]
-  (let [f (description-file id)]
-    (when-not (fs/exists? f)
-      (spit f (api/fetch-description id)))
-    (slurp f)))
+  (:description (get-activity id)))
 
-(defn sync-month [year month]
-  (let [f (activities-file year month)
-        after (format "%4d-%02d-01T00:00:00Z" year month)
-        month* (inc (rem month 12))
-        year* (+ year (if (= 12 month) 1 0))
-        before (format "%4d-%02d-01T00:00:00Z" year* month*)
-        coll (api/list-activities :per-page 200 :after after :before before)]
-    (spit f (json/generate-string coll {:pretty true}))
+(defn- write-month-summaries [year month rows]
+  (let [summaries (doall
+                   (for [row rows]
+                     (do (println "  " (:date row) (:id row) (:name row))
+                         (let [fit (str (ensure-original-file (:id row)))]
+                           (scrape-sum/merge-summary row fit)))))]
+    (spit (activities-file year month)
+          (json/generate-string summaries {:pretty true}))
+    summaries))
+
+(defn sync-year
+  "Scrape the calendar for `year`, download any missing FIT files,
+   derive API-summary maps, write one .data/activities/YYYY-MM.json per month."
+  [year]
+  (fs/create-dirs activities-dir)
+  (let [rows (scrape-cal/parse-year year (scrape-cal/fetch-year-html year))
+        by-month (group-by #(Long/parseLong (subs (:date %) 5 7)) rows)]
+    (doseq [[month month-rows] (sort-by key by-month)]
+      (println :sync (format "%04d-%02d" year month) (count month-rows))
+      (write-month-summaries year month month-rows))
+    (reset! activities (load-activities))
+    nil))
+
+(defn sync-month
+  "Sync a single month. Fetches the year calendar (one HTTP call) and keeps
+   only rows in the requested month."
+  [year month]
+  (fs/create-dirs activities-dir)
+  (let [prefix (format "%04d-%02d" year month)
+        rows (->> (scrape-cal/parse-year year (scrape-cal/fetch-year-html year))
+                  (filter #(str/starts-with? (:date %) prefix)))]
+    (println :sync prefix (count rows))
+    (write-month-summaries year month rows)
     (reset! activities (load-activities))
     nil))

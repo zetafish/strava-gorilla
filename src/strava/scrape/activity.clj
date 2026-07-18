@@ -1,7 +1,12 @@
 (ns strava.scrape.activity
   (:require [cheshire.core :as json]
             [clojure.string :as str]
-            [strava.scrape.session :as session]))
+            [medley.core :as medley]
+            [strava.scrape.session :as session])
+  (:import (org.jsoup
+            Jsoup)
+           (org.jsoup.nodes
+            TextNode)))
 
 (defn activity-url [id]
   (format "https://www.strava.com/activities/%s" id))
@@ -52,34 +57,33 @@
 (defn- find-static-map [html]
   (some-> (re-find static-map-re html) second))
 
+(defn parse-description
+  "Extract the athlete-authored description text from an activity HTML page."
+  [html]
+  (let [doc (Jsoup/parse html)
+        nodes (.selectXpath doc "//div[@class='content']/p/text()" TextNode)]
+    (str/join "\n\n" (map #(.text ^TextNode %) nodes))))
+
 (defn parse
   "Extract fields available directly from the /activities/<id> HTML.
    Returns a map with (any present of):
    :distance :moving_time :elev_gain :calories :workout_type
    :average_heartrate :average_speed :average_cadence :trainer
-   :name :sport_type :mbr :static_map_url
+   :name :sport_type :mbr :static_map_url :description
 
    NOTE: max_heartrate, has_heartrate, summary_polyline, per-second
    streams are NOT in the HTML — they load from separate stream endpoints."
   [html]
   (let [act (find-activity-set html)
-        lb  (find-lightbox html)
-        mbr (find-mbr html)
-        smap (find-static-map html)]
-    (cond-> {}
-      (get act "distance")      (assoc :distance (get act "distance"))
-      (get act "moving_time")   (assoc :moving_time (get act "moving_time"))
-      (get act "elev_gain")     (assoc :elev_gain (get act "elev_gain"))
-      (get act "calories")      (assoc :calories (get act "calories"))
-      (contains? act "workout_type") (assoc :workout_type (get act "workout_type"))
-      (get act "avg_hr")        (assoc :average_heartrate (get act "avg_hr"))
-      (get act "avg_speed")     (assoc :average_speed (get act "avg_speed"))
-      (get act "avg_cadence")   (assoc :average_cadence (get act "avg_cadence"))
-      (contains? act "trainer") (assoc :trainer (get act "trainer"))
-      (get lb "title")          (assoc :name (get lb "title"))
-      (get lb "activity_type")  (assoc :sport_type (get lb "activity_type"))
-      mbr                       (assoc :mbr mbr)
-      smap                      (assoc :static_map_url smap))))
+        lb  (find-lightbox html)]
+    (merge {:mbr (find-mbr html)
+            :static_map_url (find-static-map html)}
+           (medley/map-keys keyword act)
+           (medley/map-keys keyword lb)
+           {:description (parse-description html)})))
 
 (defn fetch [id]
   (parse (fetch-html id)))
+
+(defn fetch-description [id]
+  (parse-description (fetch-html id)))
