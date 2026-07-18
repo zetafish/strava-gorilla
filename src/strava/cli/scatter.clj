@@ -1,8 +1,8 @@
 (ns strava.cli.scatter
   (:require [babashka.cli :as cli]
             [strava.analysis :as analysis]
-            [strava.repo :as repo]
-            [strava.track :as track]))
+            [strava.cli.common :as common]
+            [strava.repo :as repo]))
 
 (def markers [\● \○ \× \△ \◆ \□ \▲ \◇ \★ \▽])
 
@@ -103,14 +103,9 @@
                          (some-> (:pace pt) (as-> v (format "%d:%02d" (quot v 60) (mod v 60))))
                          (some-> (:kmph pt) (as-> v (format "%.1f" v)))))))))
 
-(defn activity-label [f]
-  (if-let [activity (some-> (repo/extract-id f) repo/find-activity)]
-    (let [date (some-> (:start_date_local activity) (subs 0 10))]
-      (format "%s %s %.0fkm" date (:name activity) (/ (:distance activity) 1000.0)))
-    (str f)))
-
-(defn parse-file [f]
-  (-> (track/parse-file f) track/add-duration track/remove-head track/remove-tail))
+(defn activity-label [activity]
+  (let [date (some-> (:start_date_local activity) (subs 0 10))]
+    (format "%s %s %.0fkm" date (:name activity) (/ (:distance activity) 1000.0))))
 
 (defn run [args]
   (or (help-requested args)
@@ -120,22 +115,22 @@
             x-config (get axes x-axis)
             y-config (get axes y-axis)]
         (if (and x-config y-config)
-          (let [files (->> (mapcat #(repo/find-by-pattern %) (:pattern opts))
-                           distinct
-                           (sort-by str #(compare %2 %1))
-                           (take (:n opts)))]
-            (if (seq files)
+          (let [activities (->> (mapcat #(repo/find-by-pattern %) (:pattern opts))
+                                distinct
+                                (sort-by :start_date #(compare %2 %1))
+                                (take (:n opts)))]
+            (if (seq activities)
               (let [series (map-indexed
-                            (fn [i f]
+                            (fn [i a]
                               {:marker (nth markers (mod i (count markers)))
-                               :label (activity-label f)
-                               :points (analysis/select-data opts (parse-file f))})
-                            files)]
+                               :label (activity-label a)
+                               :points (analysis/select-data opts (common/parse-file (repo/fit-file a)))})
+                            activities)]
                 (doseq [{:keys [label points marker]} series]
                   (println (format "%s %s (%d pts)" marker label (count points))))
                 (scatter-plot opts series (:key x-config) (:key y-config) (:label x-config) (:label y-config))
                 (when (and (= 1 (count series)) (not (:no-table opts)))
                   (println)
                   (print-table (:points (first series)))))
-              (println "No fit file found for" (:pattern opts))))
+              (println "No activity found for" (:pattern opts))))
           (println "Invalid axes. Available: hr, ef, pace, cadence, step-length")))))
