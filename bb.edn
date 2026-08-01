@@ -1,102 +1,50 @@
 {:paths ["src"]
  :deps {org.babashka/http-client {:mvn/version "0.4.22"}
         com.cnuernber/charred {:mvn/version "1.038"}
-        dev.weavejester/medley {:mvn/version "1.10.0"}
-        org.clj-commons/claypoole {:mvn/version "1.2.2"}
-
-        ;; org.clojars.bigsy/virtual-pmap {:mvn/version "0.1.0"}
-        }
-
- :pods {org.babashka/postgresql {:version "0.1.6"}}
+        dev.weavejester/medley {:mvn/version "1.10.0"}}
  :tasks
- {:requires ([strava.cli :as cli])
-
-  server {:doc "Wake up the Gorilla"
+ {server {:doc "Wake up the Gorilla"
           :task (clojure "-M" "-m" "strava-gorilla.core")}
 
   search {:doc "Search activities by name, tag, date, distance, or HR"
           :requires [strava.cli.search]
           :task (strava.cli.search/run *command-line-args*)}
 
-  analyze {:doc "Analyze an activity"
-           :requires [strava.cli.analyze]
-           :task (apply strava.cli.analyze/-main *command-line-args*)}
-
-  monthly {:doc "Monthly totals: distance, time, avg HR/speed/cadence"
-           :requires [strava.cli.monthly]
-           :task (strava.cli.monthly/run *command-line-args*)}
-
-  weekly  {:doc "Weekly totals: distance, time, avg HR/speed/cadence"
-           :requires [strava.cli.monthly]
-           :task (strava.cli.monthly/run-weekly *command-line-args*)}
-
-  #_#_calendar {:doc "ASCII calendar view of runs for a month/year"
-            :requires [strava.cli.calendar]
-            :task (strava.cli.calendar/run *command-line-args*)}
-
-  #_#_eff {:doc "Efficiency factor (speed/HR) per quarter of an activity"
-       :requires [strava.cli.eff]
-       :task (strava.cli.eff/run *command-line-args*)}
-
-  #_#_heatmap {:doc "Render HR-vs-pace heatmap from a single activity's FIT"
-           :requires [strava.cli.heatmap]
-           :task (strava.cli.heatmap/run *command-line-args*)}
-
-  #_#_line {:doc "Line chart of a metric over time within an activity"
-        :requires [strava.cli.line]
-        :task (strava.cli.line/run *command-line-args*)}
-
-  #_#_v:load {:doc "Training load: ATL / CTL / TSB rolling averages"
-          :requires [strava.cli.load]
-          :task (strava.cli.load/run *command-line-args*)}
-
-  #_#_scatter {:doc "Scatter plot of two metrics across activities"
-           :requires [strava.cli.scatter]
-           :task (strava.cli.scatter/run *command-line-args*)}
-
-  #_#_stats {:doc "Summary stats (distance, pace, HR, EF) for one activity"
-         :requires [strava.cli.stats]
-         :task (strava.cli.stats/run *command-line-args*)}
-
   sync {:doc "Scrape Strava calendar + download FITs for -y YEAR [-m MONTH]"
         :requires [strava.cli.sync]
         :task (strava.cli.sync/run *command-line-args*)}
 
-  ;; stats:eff {:doc "Compute efficiency factor"
-  ;;            :task (cli/eff *command-line-args*)}
-  ;; stats:trend {:doc "Perform trend analysis"
-  ;;              :task (cli/trend *command-line-args*)}
-  ;; stats:similar {:doc "Find runs with similar routes"
-  ;;                :task (cli/similar *command-line-args*)}
-  ;; stats:compare {:doc "Compare batch of similar activities"
-  ;;                :task (cli/compare-runs *command-line-args*)}
+  report:splits {:doc "Report activity by splits"
+                 :requires ([strava.cli.report-splits :as c])
+                 :task (apply c/-main *command-line-args*)}
 
-  ;; plot:scatter {:doc "Compute scatter plots"
-  ;;               :task (cli/scatter *command-line-args*)}
-  ;; plot:histogram {:doc "Plot histogram of metric"
-  ;;                 :task (cli/histogram *command-line-args*)}
-  ;; plot:line {:doc "Plot line chart of metric over time"
-  ;;            :task (cli/line *command-line-args*)}
-  ;; plot:heatmap {:doc "Plot heatmap of metric1 vs metric2"
-  ;;               :task (cli/heatmap *command-line-args*)}
+  report:activities {:doc "Report activities"
+                     :requires ([strava.cli.report-activities :as c])
+                     :task (c/run *command-line-args*)}
 
-  ;; crud:load {:doc "Training load (ATL/CTL/TSB)"
-  ;;            :task (cli/load *command-line-args*)}
-  ;; crud:sync {:doc "Sync data from strava"
-  ;;            :task (cli/sync *command-line-args*)}
-  ;; crud:tag {:doc "Manage activity tags"
-  ;;           :task (cli/tag *command-line-args*)}
-  ;; crud:details {:doc "Print activity details"
-  ;;               :task (cli/details *command-line-args*)}
-  ;; crud:fetch-desc {:doc "Fetch activity details"
-  ;;                  :task (cli/fetch-desc *command-line-args*)}
-  ;; crud:search {:doc "Search for activities"
-  ;;              :task (cli/search *command-line-args*)}
+  report:days {:doc "Report activities, aggregated by day"
+               :requires ([strava.cli.report-periods :as c])
+               :task (c/run-daily *command-line-args*)}
 
-  ;; coaching:cal {:doc "Training calendar"
-  ;;               :task (cli/calendar *command-line-args*)}
+  report:weeks {:doc "Report activities, aggregated by week"
+                :requires ([strava.cli.report-periods :as c])
+                :task (c/run-weekly *command-line-args*)}
+
+  report:months {:doc "Report activites, aggregated by month"
+                 :requires ([strava.cli.report-periods :as c])
+                 :task (c/run-monthly *command-line-args*)}
+
+
+
+  #_#_eff {:doc "Efficiency factor (speed/HR) per quarter of an activity"
+           :requires [strava.cli.eff]
+           :task (strava.cli.eff/run *command-line-args*)}
+
+
 
   refresh-token {:doc "Refresh Strava OAuth token"
-                 :task (cli/refresh-token *command-line-args*)}
+                 :requires ([strava.api :as api])
+                 :task (api/refresh-token)}
+
   clerk {:doc "Start Clerk notebook"
          :task (shell "clj -X:clerk")}}}
