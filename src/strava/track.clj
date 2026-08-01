@@ -20,39 +20,45 @@
 (defn add-gait [track]
   (map #(assoc % :gait (gait %)) track))
 
+(defn stats [coll]
+  (let [coll (add-gait coll)
+        active? (fn [[a b]] (and (= 1 (- (:at b) (:at a)))
+                                 (#{:run :walk} (:gait a))
+                                 (#{:run :walk} (:gait b))))
+        elapsed (- (:at (last coll)) (:at (first coll)))
+        active-samples (filter (comp #{:run :walk} :gait) coll)
+        active-pairs (->> coll
+                          (partition 2 1)
+                          (filter active?))
+        moving (reduce + (map (fn [[a b]] (- (:at b) (:at a)))
+                              active-pairs))
+        covered (reduce + (map (fn [[a b]] (- (:distance b) (:distance a)))
+                               active-pairs))]
+    {:sample-count (count coll)
+     :active-sample-count (count active-samples)
+     :timestamp (:timestamp (first coll))
+     :from (:at (first coll))
+     :to (:at (last coll))
+     :elapsed elapsed
+     :moving moving
+     :covered covered
+     :distance (:distance (last coll))
+     :cadence (avg :cadence active-samples)
+     :step_length (avg :step_length active-samples)
+     :heart_rate (avg :heart_rate active-samples)}))
+
 (defn agg [coll & {:keys [mode]}]
   (when (seq coll)
-    (let [active? (fn [[a b]] (and (= 1 (- (:at b) (:at a)))
-                                   (#{:run :walk} (:gait a))
-                                   (#{:run :walk} (:gait b))))
-          elapsed (- (:at (last coll)) (:at (first coll)))
-          active-samples (filter (comp #{:run :walk} :gait) coll)
-          active-pairs (->> coll
-                            (partition 2 1)
-                            (filter active?))
-          moving (reduce + (map (fn [[a b]] (- (:at b) (:at a)))
-                                active-pairs))
-          covered (reduce + (map (fn [[a b]] (- (:distance b) (:distance a)))
-                                 active-pairs))
+    (let [{:keys [moving elapsed covered heart_rate] :as m} (stats coll)
           speed (when covered
                   (if (= :race mode)
                     (when (pos? elapsed) (/ covered elapsed))
-                    (when (pos? moving) (/ covered moving))))
-          heart-rate (avg :heart_rate active-samples)]
-      {:timestamp (:timestamp (first coll))
-       :from (:at (first coll))
-       :to (:at (last coll))
-       :elapsed elapsed
-       :moving moving
-       :covered covered
-       :distance (:distance (last coll))
-       :cadence (avg :cadence active-samples)
-       :step_length (avg :step_length active-samples)
-       :heart_rate heart-rate
-       :speed speed
-       :pace (speed->pace speed)
-       :kmph (speed->kmph speed)
-       :ef (ef speed heart-rate)})))
+                    (when (pos? moving) (/ covered moving))))]
+      (assoc m
+             :speed speed
+             :pace (speed->pace speed)
+             :kmph (speed->kmph speed)
+             :ef (ef speed heart_rate)))))
 
 (defn- make-boundary [at prev fallback-ts]
   {:synthetic :boundary

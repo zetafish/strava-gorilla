@@ -8,8 +8,7 @@
             [strava.parser.core :as parser]
             [strava.scrape.activity :as activity]
             [strava.scrape.calendar :as calendar]
-            [strava.scrape.original :as original]
-            [strava.tags :as tags]))
+            [strava.scrape.original :as original]))
 
 (def calendars-dir ".data/calendars")
 (def originals-dir ".data/originals")
@@ -50,8 +49,7 @@
 
 (defn filter-activities [{:keys [limit
                                  id from to pattern hr-min hr-max
-                                 dist-min dist-max
-                                 tag no-tag]}
+                                 dist-min dist-max]}
                          activities]
   (let [start-date #(some-> (:start_date %) (subs 0 10))]
     (cond->> activities
@@ -64,9 +62,6 @@
       hr-max (filter #(or (not (:has_heartrate %)) (<= (:average_heartrate %) hr-max)))
       dist-min (filter #(>= (:distance %) (* 1000 dist-min)))
       dist-max (filter #(<= (:distance %) (* 1000 dist-max)))
-      tag (filter #(every? (fn [t] (contains? (tags/all-tags (:id %) %) (keyword t))) tag))
-      no-tag (filter #(every? (fn [t] (not (contains? (tags/all-tags (:id %) %) (keyword t)))) no-tag))
-
       true (sort-by :start_data)
       limit (take limit))))
 

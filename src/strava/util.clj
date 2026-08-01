@@ -1,5 +1,6 @@
 (ns strava.util
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [strava.me :as me]))
 
 (defn avg [k coll]
   (let [vals (keep k coll)]
@@ -14,7 +15,7 @@
 
 (defn ef [speed heart-rate]
   (when (and speed heart-rate)
-    (* 60 (/ speed heart-rate))))
+    (* 60 (/ speed (- heart-rate  me/resting-hr)))))
 
 (defn parse-time [s]
   (when s

@@ -1,7 +1,12 @@
 {:paths ["src"]
  :deps {org.babashka/http-client {:mvn/version "0.4.22"}
         com.cnuernber/charred {:mvn/version "1.038"}
-        dev.weavejester/medley {:mvn/version "1.10.0"}}
+        dev.weavejester/medley {:mvn/version "1.10.0"}
+        org.clj-commons/claypoole {:mvn/version "1.2.2"}
+
+        ;; org.clojars.bigsy/virtual-pmap {:mvn/version "0.1.0"}
+        }
+
  :pods {org.babashka/postgresql {:version "0.1.6"}}
  :tasks
  {:requires ([strava.cli :as cli])

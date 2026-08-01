@@ -1,14 +1,15 @@
 (ns strava.cli.line
   (:require [babashka.cli :as cli]
-            [strava.analysis :as analysis]
-            [strava.cli.common :as common]
-            [strava.repo :as repo]))
+            ;; [strava.analysis :as analysis]
+            ;; [strava.cli.common :as common]
+            [strava.repo :as repo]
+            [strava.util :as u]))
 
 (def spec {:pattern {:alias :p :coerce [] :require true}
            :metric {:default "pace" :desc "Metric to plot: hr, ef, pace, cadence, step-length"}
-           :interval {:alias :i :coerce analysis/parse-at :default 60}
-           :from {:coerce analysis/parse-at}
-           :to {:coerce analysis/parse-at}
+           :interval {:alias :i :coerce u/parse-time :default 60}
+           :from {:coerce u/parse-time}
+           :to {:coerce u/parse-time}
            :width {:coerce :long :default 80}
            :height {:coerce :long :default 20}
            :sd-clip {:coerce :double :desc "Clip to N SDs from mean (overrides clip-min/clip-max)"}
@@ -62,7 +63,7 @@
              (map vector times values))]
 
         (doseq [row (range h)]
-          (let [val (+ min-val (/ (* (- (dec h) row) val-range) (dec h)))]
+          #_(let [val (+ min-val (/ (* (- (dec h) row) val-range) (dec h)))]
             (print (format "%8s |" (common/format-axis-value metric-key val))))
           (doseq [col (range w)]
             (print (get-in updated-canvas [row col] " ")))
