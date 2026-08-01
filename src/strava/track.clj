@@ -43,9 +43,9 @@
      :moving moving
      :covered covered
      :distance (:distance (last coll))
-     :cadence (avg :cadence active-samples)
-     :step_length (avg :step_length active-samples)
-     :heart_rate (avg :heart_rate active-samples)}))
+     :cadence (avg active-samples :cadence)
+     :step_length (avg active-samples :step_length)
+     :heart_rate (avg active-samples :heart_rate)}))
 
 (defn agg [coll & {:keys [mode]}]
   (when (seq coll)

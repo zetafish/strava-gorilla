@@ -42,6 +42,7 @@
        :day-distance-km (parse-km (get day-blob "distance"))})))
 
 (defn parse-year [year html]
+  (spit (str ".data/html/year-" year ".html") html)
   (let [cal (extract-training-calendar html)
         months (get cal "months")]
     (sort-by :date (mapcat (fn [[k v]] (month->activities year k v)) months))))

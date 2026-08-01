@@ -1,4 +1,4 @@
-(ns strava.cli.search
+(ns strava.cli.report-activities
   (:require [babashka.cli :as cli]
             [strava.repo :as repo]
             [strava.search :as search]

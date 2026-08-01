@@ -1,4 +1,4 @@
-(ns strava.cli.analyze
+(ns strava.cli.report-splits
   (:require [babashka.cli :as cli]
             [strava.format :as fmt]
             [strava.repo :as repo]

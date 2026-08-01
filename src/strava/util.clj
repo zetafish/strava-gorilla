@@ -2,10 +2,13 @@
   (:require [clojure.string :as str]
             [strava.me :as me]))
 
-(defn avg [k coll]
+(defn avg [coll k]
   (let [vals (keep k coll)]
     (when (seq vals)
       (double (/ (reduce + vals) (count vals))))))
+
+(defn sum [coll k]
+  (reduce + (keep k coll)))
 
 (defn speed->pace [speed]
   (when (and speed (pos? speed)) (int (/ 3600 (* 3.6 speed)))))

@@ -1,9 +1,9 @@
-(ns strava.cli.monthly
+(ns strava.cli.report-periods
   (:require [babashka.cli :as cli]
             [strava.search :as search]
             [strava.stats :as stats]
             [strava.table :as table]
-            [strava.util :refer [speed->pace speed->kmph ef]]))
+            [strava.util :refer [speed->pace speed->kmph ef sum]]))
 
 (def spec {:from {:desc "Start date (YYYY-MM-DD)"}
            :to {:desc "End date (YYYY-MM-DD)"}
@@ -24,15 +24,15 @@
         monday (.minusDays d (dec dow))]
     (str monday)))
 
+(defn day-key [activity]
+  (-> activity :date (subs 0 10)))
+
 (defn weighted-avg [stats k]
   (let [stats (filter k stats)
         numerator (reduce + (map #(* (:sample-count %) (k %)) stats))
         denominator (reduce + (map :sample-count stats))]
     (when (pos? denominator)
       (/ numerator denominator))))
-
-(defn sum [coll k]
-  (reduce + (keep k coll)))
 
 (defn aggregate [activities]
   (let [stats (->> (map :id activities)
@@ -79,8 +79,14 @@
         :pace :kmph :ef :step_length :cadence]
        by-period))))
 
-(defn run [args]
-  (periodic-stats args "month" month-key))
+(defn run-daily [args]
+  (or (help-requested args)
+      (periodic-stats args "day" day-key)))
+
+(defn run-monthly [args]
+  (or (help-requested args)
+      (periodic-stats args "month" month-key)))
 
 (defn run-weekly [args]
-  (periodic-stats args "week" week-key))
+  (or (help-requested args)
+      (periodic-stats args "week" week-key)))
