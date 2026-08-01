@@ -1,8 +1,10 @@
-(ns strava.format)
+(ns strava.format
+  (:require [clojure.string :as str]))
 
 (defn pace->str [seconds]
-  (when seconds
-    (format "%2d:%02d" (quot seconds 60) (mod seconds 60))))
+  (if seconds
+    (format "%2d:%02d" (quot seconds 60) (mod seconds 60))
+    (format "%5s" "-")))
 
 (defn at->str [seconds]
   (when seconds
@@ -21,55 +23,59 @@
         :else (format "%5d:%02d" m s)))))
 
 (defn epoch->str [seconds]
-  (str (java.time.Instant/ofEpochSecond seconds)))
+  (->
+   (java.time.LocalDateTime/ofInstant (java.time.Instant/ofEpochSecond seconds)
+                                      (java.time.ZoneId/of "Europe/Amsterdam"))
+   str
+   (subs 0 16)
+   (str/replace "T" " ")))
 
-(def formats {:id          ["id" (partial format "%10d")]
+(defn fmt-int [w]
+  #(format (str "%" w "s") (if % (long %) "-")))
+
+(defn fmt-double [width decimals]
+  #(if %
+     (format (str "%" width "." decimals "f") (double %))
+     (format (str "%" width "s") "-")))
+
+(def formats {:id          ["id" (fmt-int 10)]
               :name        ["name" #(subs % 0 (min (count %) 30))]
               :at          ["at" at->str]
+              :from        ["from" at->str]
+              :to          ["to" at->str]
               :timestamp   ["ts" epoch->str]
               :duration    ["duration" duration->str]
-              :distance    ["dist" #(->> % (* 0.001) (format "%5.1f"))]
-              :heart_rate  ["hr" (partial format "%d")]
-              :step_length ["sl" (partial format "%d")]
-              :cadence     ["cad" (partial format "%d")]
+              :moving      ["T_mov" duration->str]
+              :elapsed     ["T_tot" duration->str]
               :pace        ["pace" pace->str]
-              :kmph        ["km/h" (partial format "%3.1f")]
-              :speed       ["m/s" (partial format "%3.1f")]
-              :ef          ["ef" (partial format "%5.3f")]})
+              :distance    ["dist" #(some-> % (* 0.001) ((fmt-double 5 3)))]
+              :covered     ["cov" #(some-> % (* 0.001) ((fmt-double 5 3)))]
+              :cadence     ["cad" #(some-> % (* 2) ((fmt-int 3)))]
+              :step_length ["sl" (fmt-int 3)]
+              :kmph        ["km/h" (fmt-double 3 1)]
+              :kmph_adj    ["km/h(*)" (fmt-double 3 1)]
+              :speed       ["m/s" (fmt-double 5 2)]
+              :speed_adj   ["m/s(*)" (fmt-double 5 2)]
+              :heart_rate  ["hr" (fmt-int 3)]
+              :ef          ["EF" (fmt-double 5 3)]
+
+
+              ;; :ef_metric   ["EF" #(if % (format "%5.3f" %) "    -")]
+              ;; :run_ef      ["runEF" #(if % (format "%5.3f" %) "    -")]
+              ;; :walk_ef     ["walkEF" #(if % (format "%5.3f" %) "     -")]
+              ;; :run_pct     ["run%" #(if % (format "%3d%%" (int %)) "   -")]
+              ;; :pts         ["pts" (fmt-int 5)]
+              })
 
 (defn default-format-fn [v]
   (cond
     (float? v) (format "%5.3f" v)
     (double? v) (format "%5.3f" v)
     (int? v) (format "%5d" v)
-    :else (format "%s" v)))
+    :else (format "%s" (if v v "-"))))
 
 (defn format-fn [k]
   (get-in formats [k 1] default-format-fn))
 
 (defn header [k]
   (get-in formats [k 0] (name k)))
-
-(comment
-  (def format-fn {:kmph (partial format "%3.1f")
-                  :speed (partial format "%3.1.f")
-
-
-                  :ef (partial format "%5.3f")
-                  :ef_si (partial format "%5.3f")
-                  :ef_metric (partial format "%5.3f")
-
-                  :distance #(some->> % (* 0.001) (format "%5.1f"))
-                  :step_length (partial format "%3d")
-                  :pts (partial format "%4d")
-                  :heart_rate (partial format "%3d")
-                  :cadence (partial format "%3d")
-                  :duration fmt/duration->str
-
-                  :drift #(if % (format "%+.1f%%" %) "-")
-                  :split #(if % (format "%.2f" %) "-")
-
-                  :score #(if % (format "%.0fm" %) "-")
-                  :ef-pct #(if % (format "%.0f%%" %) "-")
-                  :name #(let [n (or % "")] (subs n 0 (min (count n) 30)))
-                  :date #(some-> % (subs 0 10))}))

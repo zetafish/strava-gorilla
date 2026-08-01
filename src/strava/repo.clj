@@ -3,53 +3,59 @@
             [cheshire.core :as json]
             [clojure.pprint]
             [clojure.string :as str]
+            [strava.cache :as cache]
+            [strava.log :as log]
             [strava.parser.core :as parser]
-            [strava.scrape.calendar :as scrape-cal]
-            [strava.scrape.fit :as scrape-fit]
-            [strava.scrape.summary :as scrape-sum]
+            [strava.scrape.activity :as activity]
+            [strava.scrape.calendar :as calendar]
+            [strava.scrape.original :as original]
             [strava.tags :as tags]))
 
+(def calendars-dir ".data/calendars")
 (def originals-dir ".data/originals")
 (def tracks-dir ".data/tracks")
 (def activities-dir ".data/activities")
 
-(defn load-activities []
-  (->> (fs/list-dir activities-dir)
-       (map str)
-       (map slurp)
+(defn get-calendar [year & {:keys [force]}]
+  (when force
+    (cache/evict! :calendars year))
+  (cache/through-cache :calendars year #(calendar/fetch year)))
+
+(defn get-activity [id & {:keys [force]}]
+  (when force
+    (cache/evict! :activities id))
+  (cache/through-cache :activities id #(activity/fetch id)))
+
+(defn get-original [id & {:keys [force]}]
+  (let [f (fs/file originals-dir (str id ".fit"))]
+    (when (or force (not (fs/exists? f)))
+      (original/download id f))
+    f))
+
+(defn get-track [id & {:keys [force] :as opts}]
+  (when force
+    (cache/evict! :tracks id))
+  (cache/through-cache :tracks id
+                       #(parser/parse-original (get-original id opts))))
+
+(defn load-calendars []
+  (->> (fs/list-dir calendars-dir)
+       (map (comp slurp str))
        (mapcat #(json/decode % true))))
 
-(def activities (atom (load-activities)))
+(defn load-activities []
+  (->> (fs/list-dir activities-dir)
+       (map (comp slurp str))
+       (map (comp #(json/decode % true)))))
 
-(defn- original-file [id]
-  (fs/file originals-dir (str id ".fit")))
-
-(defn- track-file [id]
-  (fs/file tracks-dir (str id ".json")))
-
-(defn- activities-file [year month]
-  (fs/file activities-dir (format "%4d-%02d.json" year month)))
-
-(defn ensure-original-file [id]
-  (let [f (original-file id)]
-    (when-not (fs/exists? f)
-      (scrape-fit/download id f))
-    f))
-
-(defn ensure-track-file [id]
-  (let [f (track-file id)]
-    (when-not (fs/exists? f)
-      (spit (str f)
-            (json/encode (parser/parse-original (ensure-original-file id))
-                         {:pretty true})))
-    f))
-
-(defn find-activities [{:keys [limit
-                               id from to pattern hr-min hr-max
-                               dist-min dist-max
-                               tag no-tag]}]
+(defn filter-activities [{:keys [limit
+                                 id from to pattern hr-min hr-max
+                                 dist-min dist-max
+                                 tag no-tag]}
+                         activities]
   (let [start-date #(some-> (:start_date %) (subs 0 10))]
-    (cond->> @activities
+    (cond->> activities
+      true (filter #(= "Run" (:activity_type %)))
       id (filter #(= id (:id %)))
       from (filter #(>= 0 (compare from (start-date %))))
       to (filter #(<= 0 (compare to (start-date %))))
@@ -60,7 +66,7 @@
       dist-max (filter #(<= (:distance %) (* 1000 dist-max)))
       tag (filter #(every? (fn [t] (contains? (tags/all-tags (:id %) %) (keyword t))) tag))
       no-tag (filter #(every? (fn [t] (not (contains? (tags/all-tags (:id %) %) (keyword t)))) no-tag))
-      true (filter #(= "Run" (:sport_type %)))
+
       true (sort-by :start_data)
       limit (take limit))))
 
@@ -91,54 +97,20 @@
           (keyword rhs) #(op lhs (get-prop % rhs))
           :else (throw (ex-info "invalid clause" {:clause where})))))))
 
-(defn find-by-pattern [pattern]
-  (find-activities {:pattern pattern}))
+(defn- sync-activities [coll]
+  (->> coll
+       (map #(future
+               (log/info %)
+               (get-activity (:id %))
+               (get-track (:id %))))
+       (map deref)
+       doall))
 
-(defn fit-file [activity]
-  (str (ensure-original-file (:id activity))))
+(defn sync-year [year]
+  (->> (get-calendar year {:force true})
+       (sync-activities)))
 
-(defn get-activity [id]
-  (first (find-activities {:id id})))
-
-(defn get-track [id]
-  (ensure-track-file id)
-  (json/decode (slurp (track-file id)) true))
-
-(defn get-description [id]
-  (:description (get-activity id)))
-
-(defn- write-month-summaries [year month rows]
-  (let [summaries (doall
-                   (for [row rows]
-                     (do (println "  " (:date row) (:id row) (:name row))
-                         (let [fit (str (ensure-original-file (:id row)))]
-                           (scrape-sum/merge-summary row fit)))))]
-    (spit (activities-file year month)
-          (json/generate-string summaries {:pretty true}))
-    summaries))
-
-(defn sync-year
-  "Scrape the calendar for `year`, download any missing FIT files,
-   derive API-summary maps, write one .data/activities/YYYY-MM.json per month."
-  [year]
-  (fs/create-dirs activities-dir)
-  (let [rows (scrape-cal/parse-year year (scrape-cal/fetch-year-html year))
-        by-month (group-by #(Long/parseLong (subs (:date %) 5 7)) rows)]
-    (doseq [[month month-rows] (sort-by key by-month)]
-      (println :sync (format "%04d-%02d" year month) (count month-rows))
-      (write-month-summaries year month month-rows))
-    (reset! activities (load-activities))
-    nil))
-
-(defn sync-month
-  "Sync a single month. Fetches the year calendar (one HTTP call) and keeps
-   only rows in the requested month."
-  [year month]
-  (fs/create-dirs activities-dir)
-  (let [prefix (format "%04d-%02d" year month)
-        rows (->> (scrape-cal/parse-year year (scrape-cal/fetch-year-html year))
-                  (filter #(str/starts-with? (:date %) prefix)))]
-    (println :sync prefix (count rows))
-    (write-month-summaries year month rows)
-    (reset! activities (load-activities))
-    nil))
+(defn sync-month [year month]
+  (->> (get-calendar year {:force true})
+       (filter #(= (format "%4d-%02d" year month) (subs (:date %) 0 7)))
+       (sync-activities)))

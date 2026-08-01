@@ -17,14 +17,16 @@
   ([keys data] (print-table (map fmt/header keys) keys data))
   ([header keys data]
    (let [data-rows (map (fn [row]
-                          (mapv (fn [k v] ((fmt/format-fn k) v))
+                          (mapv (fn [k v]
+                                  ;; (println k v)
+                                  ((fmt/format-fn k) v))
                                 keys
                                 row))
                         (map (apply juxt keys) data))
          rows (concat [header] data-rows)
          widths (max-widths rows)
-         dirs (map #(if (parse-double %) :left :right) (first data-rows))
-         table (->> (concat [(map pad header widths (repeat :right))]
+         dirs (map #(if (and % (parse-double %)) :left :right) (first data-rows))
+         table (->> (concat [(map pad header widths (repeat :left))]
                             (->> data-rows
                                  (map #(map pad % widths dirs))))
                     (map #(str/join "  " %)))

@@ -1,101 +1,149 @@
-(ns strava.track)
+(ns strava.track
+  (:require [strava.util :refer [avg speed->pace speed->kmph ef]]))
 
-(defn trim-head [track]
-  (drop-while (comp zero? :speed) track))
+;; https://apizone.suunto.com/fit-description
 
-(defn trim-tail [track]
-  (->> track
-       reverse
-       (drop-while (comp zero? :speed))
-       reverse))
+(defn gait
+  "Classify a sample as :run, :walk, or :idle.
+  Requires speed >= `run-speed` (m/s). When cadence is present it must also
+  reach `run-cadence` (steps/min, spm — the raw cadence field is doubled).
+  Missing cadence (common at the start of a run) falls back to speed alone.
+  Anything moving but below thresholds is :walk. Non-moving is :idle."
+  ([sample] (gait sample 2 150))
+  ([{:keys [speed cadence]} run-speed run-cadence]
+   (cond
+     (or (nil? speed) (zero? speed)) :idle
+     (and cadence (>= (* 2 cadence) run-cadence)) :run
+     (>= speed run-speed) :run
+     :else :walk)))
 
-(defn remove-stationary [track]
-  (remove (comp zero? :speed) track))
+(defn add-gait [track]
+  (map #(assoc % :gait (gait %)) track))
 
-(defn epoch->instant [n]
-  (java.time.Instant/ofEpochSecond n))
+(defn agg [coll & {:keys [mode]}]
+  (when (seq coll)
+    (let [active? (fn [[a b]] (and (= 1 (- (:at b) (:at a)))
+                                   (#{:run :walk} (:gait a))
+                                   (#{:run :walk} (:gait b))))
+          elapsed (- (:at (last coll)) (:at (first coll)))
+          active-samples (filter (comp #{:run :walk} :gait) coll)
+          active-pairs (->> coll
+                            (partition 2 1)
+                            (filter active?))
+          moving (reduce + (map (fn [[a b]] (- (:at b) (:at a)))
+                                active-pairs))
+          covered (reduce + (map (fn [[a b]] (- (:distance b) (:distance a)))
+                                 active-pairs))
+          speed (when covered
+                  (if (= :race mode)
+                    (when (pos? elapsed) (/ covered elapsed))
+                    (when (pos? moving) (/ covered moving))))
+          heart-rate (avg :heart_rate active-samples)]
+      {:timestamp (:timestamp (first coll))
+       :from (:at (first coll))
+       :to (:at (last coll))
+       :elapsed elapsed
+       :moving moving
+       :covered covered
+       :distance (:distance (last coll))
+       :cadence (avg :cadence active-samples)
+       :step_length (avg :step_length active-samples)
+       :heart_rate heart-rate
+       :speed speed
+       :pace (speed->pace speed)
+       :kmph (speed->kmph speed)
+       :ef (ef speed heart-rate)})))
 
-(defn rebase-at [track]
-  (let [base (:at (first track))]
-    (map #(update % :at - base) track)))
+(defn- make-boundary [at prev fallback-ts]
+  {:synthetic :boundary
+   :at at
+   :timestamp (if prev
+                (+ (:timestamp prev) (- at (:at prev)))
+                (+ at fallback-ts))
+   :distance (some-> prev :distance)})
 
-(defn double-cadence [track]
-  (map #(update % :cadence (fn [c]
-                             (when c
-                               (* 2 c))))
-       track))
+(defn- emit-boundaries
+  "Emits boundaries starting from `b-at` up to (but not including) `limit`."
+  [acc b-at limit prev fallback-ts window]
+  (loop [b b-at acc acc]
+    (if (< b limit)
+      (recur (+ b window)
+             (conj acc (make-boundary b prev fallback-ts)))
+      [acc b])))
 
-(defn avg [k coll]
-  (let [vals (keep k coll)]
-    (when (seq vals)
-      (double (/ (reduce + vals) (count vals))))))
+(defn insert-boundaries
+  "Inserts synthetic boundary maps into a track at fixed window intervals."
+  [window track]
+  (when-let [t0 (:at (first track))]
+    (let [t-start (:timestamp (first track))
+          ;; Step 1: Reduce track to insert boundaries before/between samples
+          [acc b-at prev]
+          (reduce
+           (fn [[acc b-at prev] s]
+             (let [s-at (:at s)
+                   ;; Catch up boundaries prior to current sample
+                   [acc b-at] (emit-boundaries acc b-at s-at prev t-start window)
+                   ;; If real sample lands on boundary, advance boundary target
+                   b-at (if (= s-at b-at) (+ b-at window) b-at)]
+               [(conj acc s) b-at s]))
+           [[] t0 nil]
+           track)]
 
-(defn pace [{:keys [speed]}]
-  (when (and speed (pos? speed))
-    (int (/ 3600 (* 3.6 speed)))))
-
-(defn kmph [{:keys [speed]}]
-  (when speed
-    (* 3.6 speed)))
-
-(defn efficiency [{:keys [speed heart_rate]}]
-  (when (and speed heart_rate (pos? heart_rate))
-    (* 60 (/ speed heart_rate))))
-
-(defn enrich [m]
-  (-> m
-      (assoc :pace (pace m))
-      (assoc :kmph (kmph m))
-      (assoc :ef (efficiency m))
-      (assoc :date (subs (str (java.time.Instant/ofEpochSecond (:timestamp m)))
-                         0 10))))
-
-(defn agg [coll]
-  (case (count coll)
-    0 nil
-    1 (enrich (first coll))
-    (let [duration (- (:at (last coll)) (:at (first coll)))
-          dist-covered (- (:distance (last coll)) (:distance (first coll)))]
-      (enrich {:pts (count coll)
-               :at (:at (first coll))
-               :timestamp (:timestamp (first coll))
-               :duration duration
-               :distance (:distance (last coll))
-               :step_length (some-> (avg :step_length coll) int)
-               :heart_rate (some-> (avg :heart_rate coll) int)
-               :cadence (some-> (avg :cadence coll) int (* 2))
-               :speed (/ dist-covered duration)}))))
+      ;; Step 2: Emit remaining trailing boundary at tn if it wasn't hit
+      (first (emit-boundaries acc b-at (:at prev) prev t-start window)))))
 
 (defn split-evenly [n coll]
   (let [v (vec coll)
         c (count v)
         q (quot c n)
         r (rem c n)
-        sizes (map + (repeat n q) (concat (repeat r 1) (repeat 0)))
-        edges (reductions + 0 sizes)]
-    (map (fn [start end]
-           (if (< end (count v))
-             (subvec v start (inc end))
-             (subvec v start end)))
-         edges
-         (rest edges))))
+        sizes (concat (repeat r (inc q))
+                      (repeat (- n r) q))]
+    (second
+     (reduce (fn [[i acc] sz]
+               [(+ i sz) (conj acc (subvec v i (+ i sz)))])
+             [0 []]
+             sizes))))
 
-(defn- split-by-key [key window track]
+(defn split-by-key [key window track]
   (let [segments (partition-by #(quot (get % key) window) track)]
-    (->> (map (fn [s1 s2]
-                (concat s1 [(first s2)]))
-              segments
-              (concat (rest segments) [nil]))
-         (map #(keep identity %))
-         (remove #(= 1 (count %))))))
+    (->> (partition-all 2 1 segments)
+         (map (fn [[s1 s2]]
+                (if-let [overlap (first s2)]
+                  (conj (vec s1) overlap)
+                  s1)))
+         (filter next))))
 
-(defmulti splits :strategy)
+(defmulti split-track :by)
 
-(defmethod splits :duration [{:keys [duration]} track]
-  (map agg (split-by-key :at duration track)))
+(defmethod split-track :time [{:keys [time]} track]
+  (->> track
+       (insert-boundaries time)
+       (split-by-key :at time)))
 
-(defmethod splits :distance [{:keys [distance]} track]
-  (map agg (split-by-key :distance distance track)))
+(defmethod split-track :distance [{:keys [distance]} track]
+  (split-by-key :distance distance track))
 
-(defmethod splits :evenly [{:keys [evenly]} track]
-  (map agg (split-evenly evenly track)))
+(defmethod split-track :even [{:keys [even]} track]
+  (split-evenly even track))
+
+(defn add-ef-decline [splits]
+  (if-let [base (:ef (first splits))]
+    (map (fn [s]
+           (if-let [cur (:ef s)]
+             (assoc s :efr (/ cur base))
+             s))
+         splits)
+    splits))
+
+(defn splits [opts track]
+  (->> track
+       (add-gait)
+       (split-track opts)
+       (map #(agg % opts))
+       (add-ef-decline)))
+
+(defn summary [track & {:as opts}]
+  (-> track
+      add-gait
+      (agg opts)))

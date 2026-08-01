@@ -43,7 +43,6 @@
              :cadence (some-> (avg :cadence coll) int)
              :step_length (some-> (avg :step_length coll) int)
              :distance (:distance (last coll))
-             ;; :duration (reduce + (keep :duration coll))
              :duration (inc (- (:timestamp (last coll)) (:timestamp (first coll))))
              :speed (/ (- (:distance (last coll)) (:distance (first coll)))
                        (- (:timestamp (last coll)) (:timestamp (first coll))))
@@ -57,22 +56,14 @@
          (map agg)
          (remove nil?))))
 
-(defn parse-at [s]
-  (when s
-    (let [s (str/trim s)]
-      (cond
-        (re-matches #"\d+h\d+m?" s)
-        (let [[_ h m] (re-matches #"(\d+)h(\d+)m?" s)]
-          (+ (* (parse-long h) 3600) (* (parse-long m) 60)))
-
-        (re-matches #"\d+h" s)
-        (* (parse-long (str/replace s "h" "")) 3600)
-
-        (re-matches #"\d+m" s)
-        (* (parse-long (str/replace s "m" "")) 60)
-
-        (re-matches #"\d+s" s)
-        (parse-long (str/replace s "s" ""))))))
+(defn bucketize-groups
+  "Like `bucketize` but returns the raw sample groups instead of aggregating.
+  Each group is a seq of records falling into one bucket, ordered by time."
+  [window records]
+  (let [start-ts (:timestamp (first records))]
+    (->> (group-by #(bucket-fn (:timestamp %) start-ts window) records)
+         vals
+         (sort-by (comp :timestamp first)))))
 
 (defn select-data [{:keys [from to interval]} records]
   (cond->> records

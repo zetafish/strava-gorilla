@@ -1,16 +1,22 @@
 (ns strava.cli.search
   (:require [babashka.cli :as cli]
-            [clojure.string :as str]
             [strava.repo :as repo]
-            [strava.tags :as tags]))
+            [strava.search :as search]
+            [strava.table :as table]
+            [strava.track :as track]))
 
 (def spec {:pattern {:alias :p :desc "Match part of the name"}
-           :tag {:alias :t :coerce [] :desc "Filter by tag"}
-           :no-tag {:alias :T :coerce [] :desc "Exclude activities with tag"}
            :dist-min {:coerce :int :desc "Min distance in km"}
            :dist-max {:coerce :int :desc "Max distance in km"}
-           :hr-min {:coerce :int :desc "Min heartrate"}
-           :hr-max {:coerce :int :desc "Max heartrate"}})
+           :from {:desc "Activities since yyyy-mm-dd"}
+           :to {:desc "Activities until yyyy-mm-dd"}})
+
+(defn print-table [coll]
+  (println (first coll))
+  (table/print-table
+   [:timestamp :id :elapsed :moving :distance :cadence :speed :kmph :pace
+    :heart_rate :ef :title]
+   coll))
 
 (defn help-requested [args]
   (when (or (not (seq args))
@@ -23,13 +29,11 @@
 (defn run [args]
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})
-            coll (repo/find-activities opts)]
-        (doseq [x coll]
-          (println (format
-                    "%s %s %5.1f [%s] [%s]"
-                    (subs (:start_date x) 0 10)
-                    (:id x)
-                    (* 0.001 (:distance x))
-                    (:name x)
-                    (str/join " " (tags/all-tags (:id x) x)))))
-        (println (format "%d record" (count coll))))))
+            acts (search/find-activities opts)
+            data (pmap (fn [act]
+                         (let [track (repo/get-track (:id act))]
+                           (-> (track/summary track)
+                               (assoc :title (:title act)
+                                      :id (:id act)))))
+                       acts)]
+        (print-table data))))

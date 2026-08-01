@@ -77,13 +77,11 @@
   (let [act (find-activity-set html)
         lb  (find-lightbox html)]
     (merge {:mbr (find-mbr html)
-            :static_map_url (find-static-map html)}
+            :static_map_url (find-static-map html)
+            :description (parse-description html)}
            (medley/map-keys keyword act)
-           (medley/map-keys keyword lb)
-           {:description (parse-description html)})))
+           (medley/map-keys keyword lb))))
 
 (defn fetch [id]
-  (parse (fetch-html id)))
-
-(defn fetch-description [id]
-  (parse-description (fetch-html id)))
+  (assoc (parse (fetch-html id))
+         :id id))

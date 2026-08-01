@@ -44,7 +44,7 @@
 (defn parse-year [year html]
   (let [cal (extract-training-calendar html)
         months (get cal "months")]
-    (mapcat (fn [[k v]] (month->activities year k v)) months)))
+    (sort-by :date (mapcat (fn [[k v]] (month->activities year k v)) months))))
 
-(defn fetch-year [year]
+(defn fetch [year]
   (parse-year year (fetch-year-html year)))

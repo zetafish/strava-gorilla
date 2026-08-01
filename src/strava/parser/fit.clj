@@ -6,6 +6,8 @@
             [clojure.string :as str]
             [medley.core :as medley]))
 
+(def ^:private fit-epoch-offset 631065600)
+
 (defn build-classpath []
   (p/shell "clj" "-P")
   (:out (p/shell {:out :string} "clj" "-Spath")))
@@ -20,8 +22,8 @@
               keyword))
         header))
 
-(defn epoch->instant [epoch]
-  (java.time.Instant/ofEpochSecond epoch))
+;; (defn epoch->instant [epoch]
+;;   (java.time.Instant/ofEpochSecond epoch))
 
 (defn parse-fields [m]
   (let [parse-double #(some-> % parse-double)
@@ -44,7 +46,8 @@
         (update :accumulated_power parse-long)
 
         ;; other
-        (update :timestamp parse-long))))
+        (update :timestamp parse-long)
+        (update :timestamp + fit-epoch-offset))))
 
 (defn rolling-speed [records window]
   (mapv (fn [i]

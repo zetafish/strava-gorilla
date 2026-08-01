@@ -1,4 +1,4 @@
-(ns strava.scrape.fit
+(ns strava.scrape.original
   (:require [clojure.java.io :as io]
             [strava.scrape.session :as session]))
 

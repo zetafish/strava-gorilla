@@ -1,7 +1,7 @@
-(ns strava.scrape.summary
-  "Derive an API-summary-shaped map from a calendar row + activity page + FIT file."
-  (:require [strava.parser.core :as parser]
-            [strava.scrape.activity :as scrape-act]
+(ns strava.activity
+  (:require [strava.cache :as cache]
+            [strava.parser.core :as parser]
+            [strava.scrape.activity-page :as page]
             [strava.track :as track]))
 
 (def ^:private fit-epoch-offset 631065600)
@@ -13,8 +13,13 @@
   (when (seq xs)
     (/ (double (reduce + xs)) (count xs))))
 
-(defn derive-from-fit [fit-path]
-  (let [records (-> fit-path parser/parse-original track/trim-head track/trim-tail)]
+(defn- load-records [id fit-path]
+  (cache/through-cache
+   :tracks id
+   #(-> fit-path parser/parse-original track/trim-head track/trim-tail)))
+
+(defn derive-from-fit [id fit-path]
+  (let [records (load-records id fit-path)]
     (when (seq records)
       (let [first-r (first records)
             last-r (last records)
@@ -49,9 +54,10 @@
    activity summary. FIT is preferred over page for overlapping fields
    (heartrate, speed, cadence) since it's per-second-accurate."
   [cal-row fit-path]
-  (let [page (scrape-act/fetch (:id cal-row))
-        fit  (derive-from-fit fit-path)]
-    (into {:id (:id cal-row)
+  (let [id (:id cal-row)
+        page (cache/through-cache :pages id #(page/fetch id))
+        fit  (derive-from-fit id fit-path)]
+    (into {:id id
            :type (:type cal-row)
            :sport_type (:type cal-row)}
           (remove (comp nil? val))
