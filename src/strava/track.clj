@@ -44,21 +44,25 @@
      :covered covered
      :distance (:distance (last coll))
      :cadence (avg active-samples :cadence)
-     :step_length (avg active-samples :step_length)
-     :heart_rate (avg active-samples :heart_rate)}))
+     :step-length (avg active-samples :step-length)
+     :heart-rate (avg active-samples :heart-rate)}))
+
+(defn derive-stats [{:keys [speed heart-rate] :as m}]
+  (assoc m
+         :pace (speed->pace speed)
+         :kmph (speed->kmph speed)
+         :ef (ef speed heart-rate)))
 
 (defn agg [coll & {:keys [mode]}]
   (when (seq coll)
-    (let [{:keys [moving elapsed covered heart_rate] :as m} (stats coll)
+    (let [{:keys [moving elapsed covered] :as m} (stats coll)
           speed (when covered
                   (if (= :race mode)
                     (when (pos? elapsed) (/ covered elapsed))
                     (when (pos? moving) (/ covered moving))))]
-      (assoc m
-             :speed speed
-             :pace (speed->pace speed)
-             :kmph (speed->kmph speed)
-             :ef (ef speed heart_rate)))))
+      (-> m
+          (assoc :speed speed)
+          derive-stats))))
 
 (defn- make-boundary [at prev fallback-ts]
   {:synthetic :boundary

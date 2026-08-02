@@ -51,21 +51,12 @@
               :distance    ["dist" #(some-> % (* 0.001) ((fmt-double 5 3)))]
               :covered     ["cov" #(some-> % (* 0.001) ((fmt-double 5 3)))]
               :cadence     ["cad" #(some-> % (* 2) ((fmt-int 3)))]
-              :step_length ["sl" (fmt-int 3)]
+              :step-length ["sl" (fmt-int 3)]
               :kmph        ["km/h" (fmt-double 3 1)]
-              :kmph_adj    ["km/h(*)" (fmt-double 3 1)]
               :speed       ["m/s" (fmt-double 5 2)]
-              :speed_adj   ["m/s(*)" (fmt-double 5 2)]
-              :heart_rate  ["hr" (fmt-int 3)]
+              :heart-rate  ["hr" (fmt-int 3)]
               :ef          ["EF" (fmt-double 5 3)]
-
-
-              ;; :ef_metric   ["EF" #(if % (format "%5.3f" %) "    -")]
-              ;; :run_ef      ["runEF" #(if % (format "%5.3f" %) "    -")]
-              ;; :walk_ef     ["walkEF" #(if % (format "%5.3f" %) "     -")]
-              ;; :run_pct     ["run%" #(if % (format "%3d%%" (int %)) "   -")]
-              ;; :pts         ["pts" (fmt-int 5)]
-              })
+              :efr         ["eft" #(some-> % (* 100) ((fmt-double 4 1)))]})
 
 (defn default-format-fn [v]
   (cond

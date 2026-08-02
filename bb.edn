@@ -1,14 +1,11 @@
 {:paths ["src"]
  :deps {org.babashka/http-client {:mvn/version "0.4.22"}
         com.cnuernber/charred {:mvn/version "1.038"}
-        dev.weavejester/medley {:mvn/version "1.10.0"}}
+        dev.weavejester/medley {:mvn/version "1.10.0"}
+        camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}}
  :tasks
  {server {:doc "Wake up the Gorilla"
           :task (clojure "-M" "-m" "strava-gorilla.core")}
-
-  search {:doc "Search activities by name, tag, date, distance, or HR"
-          :requires [strava.cli.search]
-          :task (strava.cli.search/run *command-line-args*)}
 
   sync {:doc "Scrape Strava calendar + download FITs for -y YEAR [-m MONTH]"
         :requires [strava.cli.sync]
@@ -34,17 +31,9 @@
                  :requires ([strava.cli.report-periods :as c])
                  :task (c/run-monthly *command-line-args*)}
 
-
-
-  #_#_eff {:doc "Efficiency factor (speed/HR) per quarter of an activity"
-           :requires [strava.cli.eff]
-           :task (strava.cli.eff/run *command-line-args*)}
-
-
-
-  refresh-token {:doc "Refresh Strava OAuth token"
+  #_#_refresh-token {:doc "Refresh Strava OAuth token"
                  :requires ([strava.api :as api])
                  :task (api/refresh-token)}
 
-  clerk {:doc "Start Clerk notebook"
+  #_#_clerk {:doc "Start Clerk notebook"
          :task (shell "clj -X:clerk")}}}

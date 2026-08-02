@@ -1,7 +1,7 @@
 (ns strava.cli.report-activities
   (:require [babashka.cli :as cli]
-            [strava.repo :as repo]
             [strava.search :as search]
+            [strava.stats :as stats]
             [strava.table :as table]
             [strava.track :as track]))
 
@@ -14,8 +14,8 @@
 (defn print-table [coll]
   (println (first coll))
   (table/print-table
-   [:timestamp :id :elapsed :moving :distance :cadence :speed :kmph :pace
-    :heart_rate :ef :title]
+   [:timestamp :id :elapsed :moving :distance  :speed :kmph :pace
+    :cadence :step-length :heart-rate :ef :title]
    coll))
 
 (defn help-requested [args]
@@ -30,10 +30,12 @@
   (or (help-requested args)
       (let [opts (cli/parse-opts args {:spec spec})
             acts (search/find-activities opts)
-            data (pmap (fn [act]
-                         (let [track (repo/get-track (:id act))]
-                           (-> (track/summary track)
-                               (assoc :title (:title act)
-                                      :id (:id act)))))
-                       acts)]
+            data (map (fn [act]
+                        (let [m (stats/get-track-stats (:id act))]
+                          (-> m
+                              (assoc :id (:id act)
+                                     :title (:title act)
+                                     :speed (/ (:covered m) (:moving m)))
+                              track/derive-stats)))
+                      acts)]
         (print-table data))))

@@ -48,7 +48,7 @@
     (table/print-table [:from :to :moving :elapsed
                         :speed :kmph :pace
                         :covered :distance
-                        :cadence :heart_rate :ef :efr]
+                        :cadence :step-length :heart-rate :ef :efr]
                        splits)))
 
 (defn -main [& args]

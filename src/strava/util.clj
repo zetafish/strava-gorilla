@@ -1,5 +1,8 @@
 (ns strava.util
-  (:require [clojure.string :as str]
+  (:require [camel-snake-kebab.core :as csk]
+            [clojure.string :as str]
+            [clojure.walk :as walk]
+            [medley.core :as medley]
             [strava.me :as me]))
 
 (defn avg [coll k]
@@ -45,3 +48,10 @@
     (cond
       (str/ends-with? s "k") (* 1000 (parse-long (subs s 0 (dec (count s)))))
       :else (parse-long s))))
+
+(defn ->kebab-case-keyword [m]
+  (walk/postwalk (fn [node]
+                   (cond
+                     (map? node) (medley/map-keys csk/->kebab-case node)
+                     :else node))
+                 m))

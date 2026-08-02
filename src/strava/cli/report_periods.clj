@@ -37,9 +37,9 @@
 (defn aggregate [activities]
   (let [stats (->> (map :id activities)
                    (map #(stats/get-track-stats %)))
-        hr (weighted-avg stats :heart_rate)
+        hr (weighted-avg stats :heart-rate)
         cad (weighted-avg stats :cadence)
-        sl (weighted-avg stats :step_length)
+        sl (weighted-avg stats :step-length)
         distance (sum stats :distance)
         elapsed (sum stats :elapsed)
         moving (sum stats :moving)
@@ -50,9 +50,9 @@
      :elapsed elapsed
      :covered covered
      :moving moving
-     :heart_rate hr
+     :heart-rate hr
      :cadence cad
-     :step_length sl
+     :step-length sl
      :speed speed
      :pace (-> speed speed->pace)
      :kmph (-> speed speed->kmph)
@@ -75,8 +75,8 @@
                               (assoc (aggregate acts) :period p))))]
     (when (seq by-period)
       (table/print-table
-       [:period :runs :distance :covered :moving :elapsed :heart_rate :speed
-        :pace :kmph :ef :step_length :cadence]
+       [:period :runs :distance :covered :moving :elapsed :heart-rate :speed
+        :pace :kmph :ef :step-length :cadence]
        by-period))))
 
 (defn run-daily [args]
