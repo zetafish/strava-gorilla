@@ -36,14 +36,6 @@
   (cache/through-cache :tracks id
                        #(parser/parse-original (get-original id opts))))
 
-#_(defn get-track-stats [id]
-  (cache/through-cache :stats id (fn []
-                                   (println "Computing stats for" id)
-                                   (-> id
-                                       get-track
-                                       track/stats
-                                       (assoc :id id)))))
-
 (defn load-calendars []
   (->> (fs/list-dir calendars-dir)
        (map (comp slurp str))

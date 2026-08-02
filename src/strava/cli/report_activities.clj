@@ -12,7 +12,6 @@
            :to {:desc "Activities until yyyy-mm-dd"}})
 
 (defn print-table [coll]
-  (println (first coll))
   (table/print-table
    [:timestamp :id :moving :elapsed
     :covered  :speed :kmph :pace

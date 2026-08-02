@@ -1,6 +1,5 @@
 (ns strava.track
-  (:require ; [strava.stats :as stats]
-   [strava.util :refer [with-derived-metrics avg speed->pace speed->kmph ef]]))
+  (:require [strava.util :refer [with-derived-metrics avg]]))
 
 ;; https://apizone.suunto.com/fit-description
 
