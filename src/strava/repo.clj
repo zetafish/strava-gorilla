@@ -3,7 +3,6 @@
             [cheshire.core :as json]
             [clojure.pprint]
             [strava.cache :as cache]
-            [strava.log :as log]
             [strava.parser.core :as parser]
             [strava.scrape.activity :as activity]
             [strava.scrape.calendar :as calendar]
@@ -58,7 +57,7 @@
           :let [id (:id a)
                 activity-miss? (not (cache/has? :activities id))
                 track-miss? (not (cache/has? :tracks id))]]
-    (log/info a)
+    (println a)
     (when activity-miss?
       (get-activity id)
       (jitter-sleep!))

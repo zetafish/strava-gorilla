@@ -23,6 +23,6 @@
                :fit (fit/records path)
                :gpx (gpx/records path)
                :tcx (tcx/records path)
-               nil)]
+               [])]
     (when data
       (u/->kebab-case-keyword data))))

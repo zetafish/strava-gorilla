@@ -21,31 +21,32 @@
   (map #(assoc % :gait (gait %)) track))
 
 (defn stats [coll]
-  (let [coll (add-gait coll)
-        active? (fn [[a b]] (and (= 1 (- (:at b) (:at a)))
-                                 (#{:run :walk} (:gait a))
-                                 (#{:run :walk} (:gait b))))
-        elapsed (- (:at (last coll)) (:at (first coll)))
-        active-samples (filter (comp #{:run :walk} :gait) coll)
-        active-pairs (->> coll
-                          (partition 2 1)
-                          (filter active?))
-        moving (reduce + (map (fn [[a b]] (- (:at b) (:at a)))
-                              active-pairs))
-        covered (reduce + (map (fn [[a b]] (- (:distance b) (:distance a)))
-                               active-pairs))]
-    {:sample-count (count coll)
-     :active-sample-count (count active-samples)
-     :timestamp (:timestamp (first coll))
-     :from (:at (first coll))
-     :to (:at (last coll))
-     :elapsed elapsed
-     :moving moving
-     :covered covered
-     :distance (:distance (last coll))
-     :cadence (avg active-samples :cadence)
-     :step-length (avg active-samples :step-length)
-     :heart-rate (avg active-samples :heart-rate)}))
+  (when (seq coll)
+    (let [coll (add-gait coll)
+          active? (fn [[a b]] (and (= 1 (- (:at b) (:at a)))
+                                   (#{:run :walk} (:gait a))
+                                   (#{:run :walk} (:gait b))))
+          elapsed (- (:at (last coll)) (:at (first coll)))
+          active-samples (filter (comp #{:run :walk} :gait) coll)
+          active-pairs (->> coll
+                            (partition 2 1)
+                            (filter active?))
+          moving (reduce + (map (fn [[a b]] (- (:at b) (:at a)))
+                                active-pairs))
+          covered (reduce + (map (fn [[a b]] (- (:distance b) (:distance a)))
+                                 active-pairs))]
+      {:sample-count (count coll)
+       :active-sample-count (count active-samples)
+       :timestamp (:timestamp (first coll))
+       :from (:at (first coll))
+       :to (:at (last coll))
+       :elapsed elapsed
+       :moving moving
+       :covered covered
+       :distance (:distance (last coll))
+       :cadence (avg active-samples :cadence)
+       :step-length (avg active-samples :step-length)
+       :heart-rate (avg active-samples :heart-rate)})))
 
 (defn agg [coll & {:keys [mode]}]
   (when (seq coll)
