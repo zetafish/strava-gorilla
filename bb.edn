@@ -7,6 +7,10 @@
  {server {:doc "Wake up the Gorilla"
           :task (clojure "-M" "-m" "strava-gorilla.core")}
 
+  calendar {:doc "Show the calendar"
+            :requires ([strava.cli.calendar :as c])
+            :task (c/run *command-line-args*)}
+
   sync {:doc "Scrape Strava calendar + download FITs for -y YEAR [-m MONTH]"
         :requires [strava.cli.sync]
         :task (strava.cli.sync/run *command-line-args*)}
