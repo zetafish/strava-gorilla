@@ -2,7 +2,6 @@
   (:require [babashka.fs :as fs]
             [cheshire.core :as json]
             [clojure.pprint]
-            [clojure.string :as str]
             [strava.cache :as cache]
             [strava.log :as log]
             [strava.parser.core :as parser]
@@ -37,6 +36,14 @@
   (cache/through-cache :tracks id
                        #(parser/parse-original (get-original id opts))))
 
+#_(defn get-track-stats [id]
+  (cache/through-cache :stats id (fn []
+                                   (println "Computing stats for" id)
+                                   (-> id
+                                       get-track
+                                       track/stats
+                                       (assoc :id id)))))
+
 (defn load-calendars []
   (->> (fs/list-dir calendars-dir)
        (map (comp slurp str))
@@ -47,59 +54,25 @@
        (map (comp slurp str))
        (map (comp #(json/decode % true)))))
 
-(defn filter-activities [{:keys [limit
-                                 id from to pattern hr-min hr-max
-                                 dist-min dist-max]}
-                         activities]
-  (let [start-date #(some-> (:start_date %) (subs 0 10))]
-    (cond->> activities
-      true (filter #(= "Run" (:activity_type %)))
-      id (filter #(= id (:id %)))
-      from (filter #(>= 0 (compare from (start-date %))))
-      to (filter #(<= 0 (compare to (start-date %))))
-      pattern (filter #(str/includes? (str/lower-case (:name %)) (str/lower-case pattern)))
-      hr-min (filter #(or (not (:has_heartrate %)) (>= (:average_heartrate %) hr-min)))
-      hr-max (filter #(or (not (:has_heartrate %)) (<= (:average_heartrate %) hr-max)))
-      dist-min (filter #(>= (:distance %) (* 1000 dist-min)))
-      dist-max (filter #(<= (:distance %) (* 1000 dist-max)))
-      true (sort-by :start_data)
-      limit (take limit))))
+(def ^:private ^:const sync-jitter-min-ms 500)
+(def ^:private ^:const sync-jitter-max-ms 2000)
 
-(defn round [v]
-  (int (Math/round v)))
-
-(defn build-pred [where]
-  (letfn [(get-prop [m k]
-            (case k
-              :date (some-> m :start_date (subs 0 10))
-              :heart_rate (some-> m :average_heartrate round)
-              :distance (some-> m :distance (/ 1000) round)
-              (get m k)))
-          (build-op [op]
-            (case op
-              :>= #(>= (compare %1 %2) 0)
-              :<= #(<= (compare %1 %2) 0)
-              :> #(> (compare %1 %2) 0)
-              :< #(< (compare %1 %2) 0)
-              := #(= %1 %2)))]
-    (case (first where)
-      :and (apply every-pred (map build-pred (rest where)))
-      :or (apply some-fn (map build-pred (rest where)))
-      (let [[op lhs rhs] where
-            op (build-op op)]
-        (cond
-          (keyword lhs) #(op (get-prop % lhs) rhs)
-          (keyword rhs) #(op lhs (get-prop % rhs))
-          :else (throw (ex-info "invalid clause" {:clause where})))))))
+(defn- jitter-sleep! []
+  (Thread/sleep (+ sync-jitter-min-ms
+                   (rand-int (- sync-jitter-max-ms sync-jitter-min-ms)))))
 
 (defn- sync-activities [coll]
-  (->> coll
-       (map #(future
-               (log/info %)
-               (get-activity (:id %))
-               (get-track (:id %))))
-       (map deref)
-       doall))
+  (doseq [a coll
+          :let [id (:id a)
+                activity-miss? (not (cache/has? :activities id))
+                track-miss? (not (cache/has? :tracks id))]]
+    (log/info a)
+    (when activity-miss?
+      (get-activity id)
+      (jitter-sleep!))
+    (when track-miss?
+      (get-track id)
+      (jitter-sleep!))))
 
 (defn sync-year [year]
   (->> (get-calendar year {:force true})

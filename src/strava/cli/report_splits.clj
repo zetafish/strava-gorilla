@@ -46,9 +46,8 @@
         splits (track/splits (assoc opts :mode (when race :race)) track)]
     (println (:title act))
     (table/print-table [:from :to :moving :elapsed
-                        :speed :kmph :pace
-                        :covered :distance
-                        :cadence :step-length :heart-rate :ef :efr]
+                        :covered :speed :kmph :pace
+                        :step-length :cadence :heart-rate :ef :efr]
                        splits)))
 
 (defn -main [& args]

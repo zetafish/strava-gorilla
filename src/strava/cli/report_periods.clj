@@ -2,8 +2,7 @@
   (:require [babashka.cli :as cli]
             [strava.search :as search]
             [strava.stats :as stats]
-            [strava.table :as table]
-            [strava.util :refer [speed->pace speed->kmph ef sum]]))
+            [strava.table :as table]))
 
 (def spec {:from {:desc "Start date (YYYY-MM-DD)"}
            :to {:desc "End date (YYYY-MM-DD)"}
@@ -27,43 +26,7 @@
 (defn day-key [activity]
   (-> activity :date (subs 0 10)))
 
-(defn weighted-avg [stats k]
-  (let [stats (filter k stats)
-        numerator (reduce + (map #(* (:sample-count %) (k %)) stats))
-        denominator (reduce + (map :sample-count stats))]
-    (when (pos? denominator)
-      (/ numerator denominator))))
-
-(defn aggregate [activities]
-  (let [stats (->> (map :id activities)
-                   (map #(stats/get-track-stats %)))
-        hr (weighted-avg stats :heart-rate)
-        cad (weighted-avg stats :cadence)
-        sl (weighted-avg stats :step-length)
-        distance (sum stats :distance)
-        elapsed (sum stats :elapsed)
-        moving (sum stats :moving)
-        covered (sum stats :covered)
-        speed (/ covered moving)]
-    {:runs (count activities)
-     :distance distance
-     :elapsed elapsed
-     :covered covered
-     :moving moving
-     :heart-rate hr
-     :cadence cad
-     :step-length sl
-     :speed speed
-     :pace (-> speed speed->pace)
-     :kmph (-> speed speed->kmph)
-     :ef (ef speed hr)}))
-
-(defn periodic-stats [args period-label group-fn]
-  (when (some #{"--help" "-h"} args)
-    (println (str "Usage: bb stats:" period-label " [OPTIONS]"))
-    (println)
-    (println (cli/format-opts {:spec spec}))
-    (System/exit 0))
+(defn periodic-stats [args group-fn]
   (let [opts (cli/parse-opts args {:spec spec})
         activities (search/find-activities {:from (:from opts)
                                             :to (:to opts)
@@ -72,21 +35,22 @@
                        (group-by group-fn)
                        (sort-by key)
                        (map (fn [[p acts]]
-                              (assoc (aggregate acts) :period p))))]
+                              (assoc (stats/aggregate-activities acts) :period p))))]
     (when (seq by-period)
       (table/print-table
-       [:period :runs :distance :covered :moving :elapsed :heart-rate :speed
-        :pace :kmph :ef :step-length :cadence]
+       [:period :runs :moving :elapsed
+        :covered :speed :pace :kmph
+        :step-length :cadence :heart-rate :ef]
        by-period))))
 
 (defn run-daily [args]
   (or (help-requested args)
-      (periodic-stats args "day" day-key)))
+      (periodic-stats args day-key)))
 
 (defn run-monthly [args]
   (or (help-requested args)
-      (periodic-stats args "month" month-key)))
+      (periodic-stats args month-key)))
 
 (defn run-weekly [args]
   (or (help-requested args)
-      (periodic-stats args "week" week-key)))
+      (periodic-stats args week-key)))

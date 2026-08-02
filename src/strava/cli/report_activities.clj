@@ -3,7 +3,7 @@
             [strava.search :as search]
             [strava.stats :as stats]
             [strava.table :as table]
-            [strava.track :as track]))
+            [strava.util :as u]))
 
 (def spec {:pattern {:alias :p :desc "Match part of the name"}
            :dist-min {:coerce :int :desc "Min distance in km"}
@@ -14,8 +14,9 @@
 (defn print-table [coll]
   (println (first coll))
   (table/print-table
-   [:timestamp :id :elapsed :moving :distance  :speed :kmph :pace
-    :cadence :step-length :heart-rate :ef :title]
+   [:timestamp :id :moving :elapsed
+    :covered  :speed :kmph :pace
+    :step-length :cadence :heart-rate :ef :title]
    coll))
 
 (defn help-requested [args]
@@ -36,6 +37,6 @@
                               (assoc :id (:id act)
                                      :title (:title act)
                                      :speed (/ (:covered m) (:moving m)))
-                              track/derive-stats)))
+                              u/with-derived-metrics)))
                       acts)]
         (print-table data))))

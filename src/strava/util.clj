@@ -23,6 +23,12 @@
   (when (and speed heart-rate)
     (* 60 (/ speed (- heart-rate  me/resting-hr)))))
 
+(defn with-derived-metrics [{:keys [speed heart-rate] :as m}]
+  (assoc m
+         :pace (speed->pace speed)
+         :kmph (speed->kmph speed)
+         :ef (ef speed heart-rate)))
+
 (defn parse-time [s]
   (when s
     (let [s (str/trim s)]

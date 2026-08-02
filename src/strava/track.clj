@@ -1,5 +1,6 @@
 (ns strava.track
-  (:require [strava.util :refer [avg speed->pace speed->kmph ef]]))
+  (:require ; [strava.stats :as stats]
+   [strava.util :refer [with-derived-metrics avg speed->pace speed->kmph ef]]))
 
 ;; https://apizone.suunto.com/fit-description
 
@@ -47,12 +48,6 @@
      :step-length (avg active-samples :step-length)
      :heart-rate (avg active-samples :heart-rate)}))
 
-(defn derive-stats [{:keys [speed heart-rate] :as m}]
-  (assoc m
-         :pace (speed->pace speed)
-         :kmph (speed->kmph speed)
-         :ef (ef speed heart-rate)))
-
 (defn agg [coll & {:keys [mode]}]
   (when (seq coll)
     (let [{:keys [moving elapsed covered] :as m} (stats coll)
@@ -62,7 +57,7 @@
                     (when (pos? moving) (/ covered moving))))]
       (-> m
           (assoc :speed speed)
-          derive-stats))))
+          with-derived-metrics))))
 
 (defn- make-boundary [at prev fallback-ts]
   {:synthetic :boundary
@@ -124,6 +119,15 @@
                   s1)))
          (filter next))))
 
+(defn add-ef-decline [splits]
+  (if-let [base (:ef (first splits))]
+    (map (fn [s]
+           (if-let [cur (:ef s)]
+             (assoc s :efr (/ cur base))
+             s))
+         splits)
+    splits))
+
 (defmulti split-track :by)
 
 (defmethod split-track :time [{:keys [time]} track]
@@ -136,15 +140,6 @@
 
 (defmethod split-track :even [{:keys [even]} track]
   (split-evenly even track))
-
-(defn add-ef-decline [splits]
-  (if-let [base (:ef (first splits))]
-    (map (fn [s]
-           (if-let [cur (:ef s)]
-             (assoc s :efr (/ cur base))
-             s))
-         splits)
-    splits))
 
 (defn splits [opts track]
   (->> track

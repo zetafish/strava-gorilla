@@ -45,8 +45,8 @@
               :to          ["to" at->str]
               :timestamp   ["ts" epoch->str]
               :duration    ["duration" duration->str]
-              :moving      ["T_mov" duration->str]
-              :elapsed     ["T_tot" duration->str]
+              :moving      ["moving" duration->str]
+              :elapsed     ["elapsed" duration->str]
               :pace        ["pace" pace->str]
               :distance    ["dist" #(some-> % (* 0.001) ((fmt-double 5 3)))]
               :covered     ["cov" #(some-> % (* 0.001) ((fmt-double 5 3)))]
@@ -56,7 +56,7 @@
               :speed       ["m/s" (fmt-double 5 2)]
               :heart-rate  ["hr" (fmt-int 3)]
               :ef          ["EF" (fmt-double 5 3)]
-              :efr         ["eft" #(some-> % (* 100) ((fmt-double 4 1)))]})
+              :efr         ["ef%" #(some-> % (* 100) ((fmt-double 4 1)))]})
 
 (defn default-format-fn [v]
   (cond

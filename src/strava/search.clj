@@ -32,14 +32,17 @@
     {:calendars calendars
      :activities activities}))
 
-(defonce state (atom (build-state)))
+(defonce state (atom nil))
+
+(defn- ensure-state! []
+  (or @state (reset! state (build-state))))
 
 (defn refresh! []
   (reset! state (build-state))
   nil)
 
 (defn find-activities [{:keys [id pattern from to dist-min dist-max limit]}]
-  (cond->> (:activities @state)
+  (cond->> (:activities (ensure-state!))
     id (filter #(= id (:id %)))
     pattern (filter #(str/includes? (str/lower-case (:title %)) (str/lower-case pattern)))
     from (filter #(<= 0 (compare (:date %) from)))
