@@ -20,6 +20,13 @@
 (defn add-gait [track]
   (map #(assoc % :gait (gait %)) track))
 
+(defn dominant [coll k]
+  (->> (map k coll)
+       frequencies
+       (sort-by second)
+       reverse
+       ffirst))
+
 (defn stats [coll]
   (when (seq coll)
     (let [coll (add-gait coll)
@@ -43,6 +50,7 @@
        :elapsed elapsed
        :moving moving
        :covered covered
+       :gait (dominant active-samples :gait)
        :distance (:distance (last coll))
        :cadence (avg active-samples :cadence)
        :step-length (avg active-samples :step-length)
@@ -120,13 +128,41 @@
          (filter next))))
 
 (defn add-ef-decline [splits]
-  (if-let [base (:ef (first splits))]
+  (if-let [base (some :ef splits)]
     (map (fn [s]
            (if-let [cur (:ef s)]
              (assoc s :efr (/ cur base))
              s))
          splits)
     splits))
+
+(defn find-stable-at
+  "Returns the :at of the first sample where trailing heart-rate over
+  `window` seconds stays within `tolerance` bpm of its own range (i.e. HR
+  has stopped climbing/dropping quickly). Returns nil if HR never stabilizes."
+  [track & {:keys [window tolerance] :or {window 60 tolerance 5}}]
+  (let [samples (filter :heart-rate track)]
+    (loop [remaining samples]
+      (when (seq remaining)
+        (let [t0 (:at (first remaining))
+              trailing (take-while #(<= (- (:at %) t0) window) remaining)
+              hrs (map :heart-rate trailing)]
+          (if (and (>= (- (:at (last trailing)) t0) (dec window))
+                   (<= (- (apply max hrs) (apply min hrs)) tolerance))
+            t0
+            (recur (rest remaining))))))))
+
+(defn blank-warmup-ef
+  "Sets :ef and :efr to nil on any split starting before `stable-at`, since
+  such a split's own EF average still mixes in unstable warmup samples."
+  [stable-at splits]
+  (if-not stable-at
+    splits
+    (map (fn [s]
+           (if (< (:from s) stable-at)
+             (assoc s :ef nil :efr nil)
+             s))
+         splits)))
 
 (defmulti split-track :by)
 
@@ -141,12 +177,14 @@
 (defmethod split-track :even [{:keys [even]} track]
   (split-evenly even track))
 
-(defn splits [opts track]
-  (->> track
-       (add-gait)
-       (split-track opts)
-       (map #(agg % opts))
-       (add-ef-decline)))
+(defn splits [{:keys [ef-skip-warmup] :as opts} track]
+  (let [gaited (add-gait track)
+        stable-at (when ef-skip-warmup (find-stable-at gaited))]
+    (->> gaited
+         (split-track opts)
+         (map #(agg % opts))
+         (blank-warmup-ef stable-at)
+         (add-ef-decline))))
 
 (defn summary [track & {:as opts}]
   (-> track

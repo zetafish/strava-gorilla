@@ -4,7 +4,9 @@
             [strava.track :as track]
             [strava.util :as u]))
 
-(defn get-track-stats [id]
+(defn get-track-stats [id & {:keys [rebuild-stats]}]
+  (when rebuild-stats
+    (cache/evict! :stats id))
   (cache/through-cache :stats id (fn []
                                    (println "Computing stats for" id)
                                    (-> id

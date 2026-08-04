@@ -8,13 +8,15 @@
 (def spec {:pattern {:alias :p :desc "Match part of the name"}
            :dist-min {:coerce :int :desc "Min distance in km"}
            :dist-max {:coerce :int :desc "Max distance in km"}
-           :from {:desc "Activities since yyyy-mm-dd"}
-           :to {:desc "Activities until yyyy-mm-dd"}})
+           :from {:desc "Activities since yyyy-mm-dd" :coerce u/parse-from}
+           :to {:desc "Activities until yyyy-mm-dd" :coerce u/parse-to}
+           :range {}
+           :rebuild-stats {}})
 
 (defn print-table [coll]
   (table/print-table
    [:timestamp :id :moving :elapsed
-    :covered  :speed :kmph :pace
+    :gait :covered  :speed :kmph :pace
     :step-length :cadence :heart-rate :ef :title]
    coll))
 
@@ -28,10 +30,11 @@
 
 (defn run [args]
   (or (help-requested args)
-      (let [opts (cli/parse-opts args {:spec spec})
+      (let [opts (-> (cli/parse-opts args {:spec spec}) u/expand-range)
+            _ (println opts)
             acts (search/find-activities opts)
             data (map (fn [act]
-                        (let [m (stats/get-track-stats (:id act))]
+                        (let [m (stats/get-track-stats (:id act) opts)]
                           (-> m
                               (assoc :id (:id act)
                                      :title (:title act)

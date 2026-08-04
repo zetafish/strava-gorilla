@@ -2,10 +2,12 @@
   (:require [babashka.cli :as cli]
             [strava.search :as search]
             [strava.stats :as stats]
-            [strava.table :as table]))
+            [strava.table :as table]
+            [strava.util :as u]))
 
-(def spec {:from {:desc "Start date (YYYY-MM-DD)"}
-           :to {:desc "End date (YYYY-MM-DD)"}
+(def spec {:from {:desc "Start date (YYYY-MM-DD)" :coerce u/parse-from}
+           :to {:desc "End date (YYYY-MM-DD)" :coerce u/parse-to}
+           :range {}
            :help {:alias :h :coerce :boolean}})
 
 (defn help-requested [args]
@@ -27,7 +29,8 @@
   (-> activity :date (subs 0 10)))
 
 (defn periodic-stats [args group-fn]
-  (let [opts (cli/parse-opts args {:spec spec})
+  (let [opts (-> (cli/parse-opts args {:spec spec})
+                 u/expand-range)
         activities (search/find-activities {:from (:from opts)
                                             :to (:to opts)
                                             :limit 10000})

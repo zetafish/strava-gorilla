@@ -27,7 +27,8 @@
            :race {}
            :by-time {:alias :t :coerce u/parse-time}
            :by-distance {:alias :d :coerce u/parse-distance}
-           :by-even {:alias :e :coerce :int}})
+           :by-even {:alias :e :coerce :int}
+           :ef-skip-warmup {:desc "Blank EF until HR stabilizes"}})
 
 (defn help-requested [args]
   (when (or (not (seq args))
@@ -35,7 +36,7 @@
     (println (cli/format-opts {:spec spec}))
     true))
 
-(defn run [{:keys [id by-time by-distance by-even race]}]
+(defn run [{:keys [id by-time by-distance by-even race ef-skip-warmup]}]
   (let [act (repo/get-activity id)
         track (repo/get-track id)
         opts (cond
@@ -43,7 +44,8 @@
                by-distance {:by :distance :distance by-distance}
                by-even {:by :even :even by-even}
                :else {:by :distance :distance 1000})
-        splits (track/splits (assoc opts :mode (when race :race)) track)]
+        opts (assoc opts :mode (when race :race) :ef-skip-warmup ef-skip-warmup)
+        splits (track/splits opts track)]
     (println (:title act))
     (table/print-table [:from :to :moving :elapsed
                         :covered :speed :kmph :pace

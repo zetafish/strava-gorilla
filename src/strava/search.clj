@@ -43,6 +43,7 @@
 
 (defn find-activities [{:keys [id pattern from to dist-min dist-max limit]}]
   (cond->> (:activities (ensure-state!))
+    true (filter (comp #{"Walk" "Run"} :activity_type))
     id (filter #(= id (:id %)))
     pattern (filter #(str/includes? (str/lower-case (:title %)) (str/lower-case pattern)))
     from (filter #(<= 0 (compare (:date %) from)))
