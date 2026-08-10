@@ -1,5 +1,6 @@
 (ns strava.util
-  (:require [camel-snake-kebab.core :as csk]
+  (:require [babashka.cli :as cli]
+            [camel-snake-kebab.core :as csk]
             [clojure.string :as str]
             [clojure.walk :as walk]
             [medley.core :as medley]
@@ -85,7 +86,7 @@
     (.withDayOfYear d (.lengthOfYear d))))
 
 (defn parse-relative-date [s]
-  (when-let [[_ _ n p _ q] (re-matches #"now(-(\d+)(w|m|y))?(/(w|m|y))?" s)]
+  (when-let [[_ _ n p _ q] (re-matches #"now(-(\d+)(d|w|m|y))?(/(w|m|y))?" s)]
     {:offset-amount (some-> n parse-long)
      :offset-unit p
      :range-unit q}))
@@ -104,6 +105,7 @@
                                    "y" (first-day-of-year))]
                            (if (:offset-unit m)
                              (case (:offset-unit m)
+                               ;; "d" (.minusDays d (:offset-amount m))
                                "w" (.minusWeeks d (:offset-amount m))
                                "m" (.minusMonths d (:offset-amount m))
                                "y" (.minusYears d (:offset-amount m)))
@@ -123,10 +125,14 @@
                                    "y" (last-day-of-year))]
                            (if (:offset-unit m)
                              (case (:offset-unit m)
+                               ;; "d" (.minusDays d (:offset-amount m))
                                "w" (.minusWeeks d (:offset-amount m))
                                "m" (.minusMonths d (:offset-amount m))
                                "y" (.minusYears d (:offset-amount m)))
                              d)))))))
+
+;; (parse-relative-date "now-1w")
+;; (parse-from "now-1d/d")
 
 (defn expand-range [{:keys [range] :as opts}]
   (case range
@@ -151,3 +157,9 @@
                      (map? node) (medley/map-keys csk/->kebab-case node)
                      :else node))
                  m))
+
+(defn help-requested [args spec]
+  (when (or (not (seq args))
+            (:help (cli/parse-opts args {:spec {:help {:alias :h}}})))
+    (println (cli/format-opts {:spec spec}))
+    true))

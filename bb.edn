@@ -35,9 +35,21 @@
                  :requires ([strava.cli.report-periods :as c])
                  :task (c/run-monthly *command-line-args*)}
 
+  report:quarters {:doc "Report activites, aggregated by quarter"
+                   :requires ([strava.cli.report-periods :as c])
+                   :task (c/run-quarterly *command-line-args*)}
+
+  report:years {:doc "Report activites, aggregated by year"
+                :requires ([strava.cli.report-periods :as c])
+                :task (c/run-yearly *command-line-args*)}
+
+  chart {:doc "Print chart"
+         :requires ([strava.cli.chart :as chart])
+         :task (apply chart/-main *command-line-args*)}
+
   #_#_refresh-token {:doc "Refresh Strava OAuth token"
-                 :requires ([strava.api :as api])
-                 :task (api/refresh-token)}
+                     :requires ([strava.api :as api])
+                     :task (api/refresh-token)}
 
   #_#_clerk {:doc "Start Clerk notebook"
-         :task (shell "clj -X:clerk")}}}
+             :task (shell "clj -X:clerk")}}}

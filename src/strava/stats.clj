@@ -31,7 +31,7 @@
         elapsed (u/sum stats :elapsed)
         moving (u/sum stats :moving)
         covered (u/sum stats :covered)
-        speed (/ covered moving)]
+        speed (when (pos? moving) (/ covered moving))]
     (u/with-derived-metrics {:runs (count activities)
                              :distance distance
                              :elapsed elapsed

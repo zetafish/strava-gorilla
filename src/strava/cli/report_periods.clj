@@ -3,24 +3,30 @@
             [strava.search :as search]
             [strava.stats :as stats]
             [strava.table :as table]
-            [strava.util :as u]))
+            [strava.util :as u])
+  (:import (java.time
+            LocalDate)
+           (java.time.temporal
+            IsoFields)))
 
 (def spec {:from {:desc "Start date (YYYY-MM-DD)" :coerce u/parse-from}
            :to {:desc "End date (YYYY-MM-DD)" :coerce u/parse-to}
            :range {}
            :help {:alias :h :coerce :boolean}})
 
-(defn help-requested [args]
-  (when (or (not (seq args))
-            (:help (cli/parse-opts args {:spec {:help {:alias :h}}})))
-    (println (cli/format-opts {:spec spec}))
-    true))
+(defn year-key [activity]
+  (-> activity :date (subs 0 4)))
+
+(defn quarter-key [activity]
+  (let [q (-> (LocalDate/parse (:date activity))
+              (.get IsoFields/QUARTER_OF_YEAR))]
+    (str (year-key activity) "-Q" q)))
 
 (defn month-key [activity]
   (-> activity :date (subs 0 7)))
 
 (defn week-key [activity]
-  (let [d (java.time.LocalDate/parse (:date activity))
+  (let [d (LocalDate/parse (:date activity))
         dow (.getValue (.getDayOfWeek d))
         monday (.minusDays d (dec dow))]
     (str monday)))
@@ -47,13 +53,21 @@
        by-period))))
 
 (defn run-daily [args]
-  (or (help-requested args)
+  (or (u/help-requested args spec)
       (periodic-stats args day-key)))
 
+(defn run-weekly [args]
+  (or (u/help-requested args spec)
+      (periodic-stats args week-key)))
+
 (defn run-monthly [args]
-  (or (help-requested args)
+  (or (u/help-requested args spec)
       (periodic-stats args month-key)))
 
-(defn run-weekly [args]
-  (or (help-requested args)
-      (periodic-stats args week-key)))
+(defn run-quarterly [args]
+  (or (u/help-requested args spec)
+      (periodic-stats args quarter-key)))
+
+(defn run-yearly [args]
+  (or (u/help-requested args spec)
+      (periodic-stats args year-key)))
