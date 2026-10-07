@@ -19,6 +19,10 @@
                  :requires ([strava.cli.report-splits :as c])
                  :task (apply c/-main *command-line-args*)}
 
+  report:gait {:doc "Report activity split into continuous run/walk/idle stretches"
+               :requires ([strava.cli.report-gait :as c])
+               :task (apply c/-main *command-line-args*)}
+
   report:activities {:doc "Report activities"
                      :requires ([strava.cli.report-activities :as c])
                      :task (c/run *command-line-args*)}

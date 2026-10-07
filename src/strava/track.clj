@@ -177,12 +177,78 @@
 (defmethod split-track :even [{:keys [even]} track]
   (split-evenly even track))
 
+(defn smooth-gait
+  "Replaces each sample's :gait with the majority gait over a centered
+  window of `window` samples, so single-sample flips don't break a stretch."
+  [window track]
+  (let [v (vec track)
+        n (count v)
+        h (quot window 2)]
+    (map-indexed (fn [i s]
+                   (assoc s :gait (dominant (subvec v (max 0 (- i h)) (min n (+ i h 1)))
+                                            :gait)))
+                 v)))
+
+(defn- seg-duration [[_ samples]]
+  (inc (- (:at (peek samples)) (:at (first samples)))))
+
+(defn- coalesce
+  "Joins neighbouring [gait samples] segments that have the same gait."
+  [segs]
+  (reduce (fn [acc [label samples :as seg]]
+            (let [[prev-label prev-samples] (peek acc)]
+              (if (= prev-label label)
+                (conj (pop acc) [label (into prev-samples samples)])
+                (conj acc seg))))
+          []
+          segs))
+
+(defn absorb-short
+  "Repeatedly merges the shortest [gait samples] segment under `min-duration`
+  seconds into its longer neighbour, taking that neighbour's gait."
+  [min-duration segments]
+  (loop [segs (coalesce segments)]
+    (let [n (count segs)
+          shortest (->> (range n)
+                        (filter #(< (seg-duration (segs %)) min-duration))
+                        (sort-by #(seg-duration (segs %)))
+                        first)]
+      (if (or (nil? shortest) (< n 2))
+        segs
+        (let [i shortest
+              j (cond
+                  (zero? i) 1
+                  (= i (dec n)) (dec i)
+                  (>= (seg-duration (segs (dec i))) (seg-duration (segs (inc i)))) (dec i)
+                  :else (inc i))
+              lo (min i j)
+              hi (max i j)
+              merged [(first (segs j)) (into (second (segs lo)) (second (segs hi)))]]
+          (recur (coalesce (-> (subvec segs 0 lo)
+                               (conj merged)
+                               (into (subvec segs (inc hi)))))))))))
+
+(defmethod split-track :gait [{:keys [smooth min-duration] :or {smooth 31 min-duration 60}} track]
+  (let [segs (->> track
+                  (smooth-gait smooth)
+                  (partition-by :gait)
+                  (map (fn [ss] [(:gait (first ss)) (vec ss)]))
+                  (absorb-short min-duration))]
+    ;; Each segment also gets the next segment's first sample, as in split-by-key,
+    ;; so no time is lost between segments.
+    (->> (partition-all 2 1 segs)
+         (map (fn [[[label ss] [_ next-ss]]]
+                (mapv #(assoc % :split-gait label)
+                      (cond-> ss next-ss (conj (first next-ss))))))
+         (filter next))))
+
 (defn splits [{:keys [ef-skip-warmup] :as opts} track]
   (let [gaited (add-gait track)
         stable-at (when ef-skip-warmup (find-stable-at gaited))]
     (->> gaited
          (split-track opts)
-         (map #(agg % opts))
+         (map #(let [label (:split-gait (first %))]
+                 (cond-> (agg % opts) label (assoc :gait label))))
          (blank-warmup-ef stable-at)
          (add-ef-decline))))
 
