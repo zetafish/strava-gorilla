@@ -11,6 +11,10 @@
             :requires ([strava.cli.calendar :as c])
             :task (c/run *command-line-args*)}
 
+  list {:doc "List activities from the calendar files"
+        :requires ([strava.cli.list :as c])
+        :task (c/run *command-line-args*)}
+
   sync {:doc "Scrape Strava calendar + download FITs for -y YEAR [-m MONTH]"
         :requires [strava.cli.sync]
         :task (strava.cli.sync/run *command-line-args*)}
