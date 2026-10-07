@@ -10,6 +10,10 @@
            :dist-max {:coerce :int :desc "Max distance in km"}
            :from {:desc "Activities since yyyy-mm-dd" :coerce u/parse-from}
            :to {:desc "Activities until yyyy-mm-dd" :coerce u/parse-to}
+           :speed-min {:coerce :double :desc "Min moving speed in km/h"}
+           :speed-max {:coerce :double :desc "Max moving speed in km/h"}
+           :pace-min {:coerce u/pace->kmph :desc "Slowest moving pace, m:ss per km"}
+           :pace-max {:coerce u/pace->kmph :desc "Fastest moving pace, m:ss per km"}
            :range {}
            :rebuild-stats {}})
 
@@ -19,6 +23,19 @@
     :gait :covered  :speed :kmph :pace
     :step-length :cadence :heart-rate :ef :title]
    coll))
+
+(defn speed-bounds
+  "Combine speed and pace options into [lo hi] km/h, either may be nil."
+  [{:keys [speed-min speed-max pace-min pace-max]}]
+  (let [lo (or speed-min pace-min)
+        hi (or speed-max pace-max)]
+    (if (and lo hi (> lo hi)) [hi lo] [lo hi])))
+
+(defn filter-speed [opts coll]
+  (let [[lo hi] (speed-bounds opts)]
+    (cond->> coll
+      lo (filter #(some-> (:kmph %) (>= lo)))
+      hi (filter #(some-> (:kmph %) (<= hi))))))
 
 (defn help-requested [args]
   (when (or (not (seq args))
@@ -38,7 +55,7 @@
                           (-> m
                               (assoc :id (:id act)
                                      :title (:title act)
-                                     :speed (/ (:covered m) (:moving m)))
+                                     :speed (when (pos? (:moving m)) (/ (:covered m) (:moving m))))
                               u/with-derived-metrics)))
                       acts)]
-        (print-table data))))
+        (print-table (filter-speed opts data)))))

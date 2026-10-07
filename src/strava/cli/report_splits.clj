@@ -28,6 +28,7 @@
            :by-time {:alias :t :coerce u/parse-time}
            :by-distance {:alias :d :coerce u/parse-distance}
            :by-even {:alias :e :coerce :int}
+           :mode {}
            :ef-skip-warmup {:desc "Blank EF until HR stabilizes"}})
 
 (defn help-requested [args]

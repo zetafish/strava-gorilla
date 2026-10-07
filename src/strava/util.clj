@@ -6,7 +6,10 @@
             [medley.core :as medley]
             [strava.me :as me])
   (:import (java.time
-            LocalDate)))
+            DayOfWeek
+            LocalDate)
+           (java.time.temporal
+            TemporalAdjusters)))
 
 (defn avg [coll k]
   (let [vals (keep k coll)]
@@ -21,6 +24,14 @@
 
 (defn speed->kmph [speed]
   (when speed (* 3.6 speed)))
+
+(defn pace->kmph
+  "Parse a pace like \"5:30\" (min:sec per km) into km/h."
+  [s]
+  (let [[_ m sec] (re-matches #"(\d+):(\d{2})" (str/trim s))]
+    (when-not m
+      (throw (ex-info (str "Invalid pace, expected m:ss: " s) {:pace s})))
+    (/ 3600.0 (+ (* 60 (parse-long m)) (parse-long sec)))))
 
 (defn ef [speed heart-rate]
   (when (and speed heart-rate)
@@ -56,83 +67,49 @@
   (subs (str d) 0 10))
 
 (defn date-now []
-  (java.time.LocalDate/now))
-
-(defn date-now-minus [n]
-  (.minusDays (date-now) n))
-
-(defn first-day-of-week []
-  (let [d (java.time.LocalDate/now)]
-    (.minusDays d (dec (.getValue (.getDayOfWeek d))))))
-
-(defn last-day-of-week []
-  (let [d (java.time.LocalDate/now)]
-    (.plusDays d (- 7 (.getValue (.getDayOfWeek d))))))
-
-(defn last-day-of-month []
-  (let [d (java.time.LocalDate/now)]
-    (.withDayOfMonth d (.lengthOfMonth d))))
-
-(defn first-day-of-month []
-  (let [d (java.time.LocalDate/now)]
-    (.withDayOfMonth d 1)))
-
-(defn first-day-of-year []
-  (let [d (LocalDate/now)]
-    (.withDayOfYear d 1)))
-
-(defn last-day-of-year []
-  (let [d (LocalDate/now)]
-    (.withDayOfYear d (.lengthOfYear d))))
+  (LocalDate/now))
 
 (defn parse-relative-date [s]
   (when-let [[_ _ n p _ q] (re-matches #"now(-(\d+)(d|w|m|y))?(/(w|m|y))?" s)]
     {:offset-amount (some-> n parse-long)
      :offset-unit p
-     :range-unit q}))
+     :snap-unit q}))
+
+(defn minus [date unit amount]
+  (case unit
+    "d" (.minusDays date amount)
+    "w" (.minusWeeks date amount)
+    "m" (.minusMonths date amount)
+    "y" (.minusYears date amount)))
+
+(defn snap-down [local-date unit]
+  (case unit
+    "w" (.with local-date DayOfWeek/MONDAY)
+    "m" (.withDayOfMonth local-date 1)
+    "y" (.withDayOfYear local-date 1)))
+
+(defn snap-up [local-date unit]
+  (case unit
+    "w" (.with local-date DayOfWeek/SUNDAY)
+    "m" (.with local-date (TemporalAdjusters/lastDayOfMonth))
+    "y" (.with local-date (TemporalAdjusters/lastDayOfYear))))
+
+(defn parse-moment [s snap-fn]
+  (when s
+    (let [s (str/trim s)
+          m (parse-relative-date s)]
+      (str
+       (cond
+         (re-matches #"\d\d\d\d-\d\d-\d\d" s) s
+         m (cond-> (date-now)
+             (:offset-unit m) (minus (:offset-unit m) (:offset-amount m))
+             (:snap-unit m) (snap-fn (:snap-unit m))))))))
 
 (defn parse-from [s]
-  (when s
-    (let [s (str/trim s)
-          m (parse-relative-date s)]
-      (str
-       (cond
-         (= "now" s) (date-now)
-         (re-matches #"\d\d\d\d-\d\d-\d\d" s) s
-         (:range-unit m) (let [d (case (:range-unit m)
-                                   "w" (first-day-of-week)
-                                   "m" (first-day-of-month)
-                                   "y" (first-day-of-year))]
-                           (if (:offset-unit m)
-                             (case (:offset-unit m)
-                               ;; "d" (.minusDays d (:offset-amount m))
-                               "w" (.minusWeeks d (:offset-amount m))
-                               "m" (.minusMonths d (:offset-amount m))
-                               "y" (.minusYears d (:offset-amount m)))
-                             d)))))))
+  (parse-moment s snap-down))
 
 (defn parse-to [s]
-  (when s
-    (let [s (str/trim s)
-          m (parse-relative-date s)]
-      (str
-       (cond
-         (= "now" s) (date-now)
-         (re-matches #"\d\d\d\d-\d\d-\d\d" s) s
-         (:range-unit m) (let [d (case (:range-unit m)
-                                   "w" (last-day-of-week)
-                                   "m" (last-day-of-month)
-                                   "y" (last-day-of-year))]
-                           (if (:offset-unit m)
-                             (case (:offset-unit m)
-                               ;; "d" (.minusDays d (:offset-amount m))
-                               "w" (.minusWeeks d (:offset-amount m))
-                               "m" (.minusMonths d (:offset-amount m))
-                               "y" (.minusYears d (:offset-amount m)))
-                             d)))))))
-
-;; (parse-relative-date "now-1w")
-;; (parse-from "now-1d/d")
+  (parse-moment s snap-up))
 
 (defn expand-range [{:keys [range] :as opts}]
   (case range

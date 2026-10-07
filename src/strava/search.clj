@@ -48,6 +48,6 @@
     pattern (filter #(str/includes? (str/lower-case (:title %)) (str/lower-case pattern)))
     from (filter #(<= 0 (compare (:date %) from)))
     to (filter #(<= 0 (compare to (:date %))))
-    dist-min (filter #(>= (:distance %) (* 1000 dist-min)))
-    dist-max (filter #(<= (:distance %) (* 1000 dist-max)))
+    dist-min (filter #(>= (or (:distance %) 0) (* 1000 dist-min)))
+    dist-max (filter #(<= (or (:distance %) 0) (* 1000 dist-max)))
     limit (take limit)))

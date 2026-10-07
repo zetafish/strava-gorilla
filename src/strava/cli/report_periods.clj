@@ -37,6 +37,7 @@
 (defn periodic-stats [args group-fn]
   (let [opts (-> (cli/parse-opts args {:spec spec})
                  u/expand-range)
+        _ (println opts)
         activities (search/find-activities {:from (:from opts)
                                             :to (:to opts)
                                             :limit 10000})
