@@ -11,9 +11,11 @@
 \#*
 .\#*
 .data/
+\*.swp
 
 # temp folders
 scratch/
 balatonfured/
 analysis/
 coaching/
+_parked/
