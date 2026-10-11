@@ -10,3 +10,10 @@
 .strava.db
 \#*
 .\#*
+.data/
+
+# temp folders
+scratch/
+balatonfured/
+analysis/
+coaching/
